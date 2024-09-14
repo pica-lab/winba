@@ -1,4 +1,4 @@
-import { useGamba } from 'gamba-react-v2'
+import { useWinba } from 'gamba-react'
 import React, { useRef } from 'react'
 import styled, { css } from 'styled-components'
 import { useCurrentToken, useFees, useUserBalance } from '../hooks'
@@ -128,7 +128,7 @@ export type WagerInputProps = WagerInputBaseProps & {
 }
 
 export function WagerInput(props: WagerInputProps) {
-  const gamba = useGamba()
+  const gamba = useWinba()
   const token = useCurrentToken()
   const [input, setInput] = React.useState('')
   const balance = useUserBalance() // useBalance(walletAddress, token.mint)
@@ -168,7 +168,7 @@ export function WagerInput(props: WagerInputProps) {
   return (
     <div ref={ref} className={props.className} style={{ position: 'relative' }}>
       <StyledWagerInput $edit={isEditing}>
-        <Flex onClick={() => !gamba.isPlaying && startEditInput()}>
+        <Flex onClick={() => !winba.isPlaying && startEditInput()}>
           <TokenImage src={token.image} />
           {(!isEditing || props.options) ? (
             <WagerAmount
@@ -187,7 +187,7 @@ export function WagerInput(props: WagerInputProps) {
               onChange={(evt) => setInput(evt.target.value)}
               onKeyDown={(e) => e.code === 'Enter' && apply()}
               onBlur={(evt) => apply()}
-              disabled={gamba.isPlaying}
+              disabled={winba.isPlaying}
               autoFocus
               onFocus={(e) => e.target.select()}
             />
