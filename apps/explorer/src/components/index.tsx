@@ -4,7 +4,7 @@ import { PublicKey } from "@solana/web3.js"
 import React, { PropsWithChildren } from "react"
 import styled, { css } from "styled-components"
 import { TokenValue2 } from "./TokenValue2"
-import { SolanaAddress } from "./SolanaAddress"
+import { OPAddress } from "./OPAddress"
 
 export const SelectableButton = styled.button<{selected?: boolean}>`
   all: unset;
