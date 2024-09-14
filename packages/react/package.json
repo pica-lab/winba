@@ -19,22 +19,22 @@
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist"
   },
   "dependencies": {
-    "@thirdweb-dev/react": "^3.0.0",  // Thirdweb React SDK
-    "@thirdweb-dev/sdk": "^3.0.0",    // Thirdweb SDK
-    "ethers": "^5.7.0",               // ethers.js for blockchain interaction
-    "typescript": "^5.2.2",           // TypeScript for type definitions
-    "dotenv": "^10.0.0"               // dotenv for environment variable management
+    "@thirdweb-dev/react": "^3.0.0",  
+    "@thirdweb-dev/sdk": "^3.0.0",    
+    "ethers": "^5.7.0",               
+    "typescript": "^5.2.2",           
+    "dotenv": "^10.0.0"            
   },
   "devDependencies": {
-    "eslint": "^8.48.0",              // ESLint for linting
-    "tsup": "^7.2.0",                 // tsup for building the package
-    "@types/react": "^18.0.0",        // TypeScript definitions for React
-    "@types/node": "^18.0.0",         // TypeScript definitions for Node.js
-    "@types/ethers": "^5.7.0"         // TypeScript definitions for ethers.js
+    "eslint": "^8.48.0",          
+    "tsup": "^7.2.0",               
+    "@types/react": "^18.0.0",       
+    "@types/node": "^18.0.0",      
+    "@types/ethers": "^5.7.0"      
   },
   "peerDependencies": {
-    "react": "^18.0.0",               // React as a peer dependency
-    "react-dom": "^18.0.0"            // React DOM as a peer dependency
+    "react": "^18.0.0",              
+    "react-dom": "^18.0.0"         
   },
   "keywords": [
     "winba",
@@ -43,6 +43,6 @@
     "smartwallet",
     "thirdweb"
   ],
-  "author": "Your Name",
+  "author": "Alps",
   "license": "MIT"
 }
