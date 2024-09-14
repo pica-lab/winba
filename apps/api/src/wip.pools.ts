@@ -1,59 +1,104 @@
-/**
- * Work in Progress!
- * Since we didn't log anchor events for pool creations,
- * this function will be used to find all pool creation sigs
- */
-import { BorshCoder } from '@coral-xyz/anchor'
-import { PartiallyDecodedInstruction } from '@solana/web3.js'
-import { IDL, PROGRAM_ID } from 'gamba-core-v2'
-import { all } from './db'
-import { createBatches } from './utils'
-import { connection } from './web3'
+import { ThirdwebSDK } from "@thirdweb-dev/sdk";
+import { ethers } from "ethers";
+import { all } from './db';
+import { createBatches } from './utils';
+import { provider } from './web3';
 
-const coder = new BorshCoder(IDL)
+const sdk = new ThirdwebSDK("optimism");
+
+export const getAllPools = async () => {
+  const changes = await all(`
+    SELECT
+      pc.block_time,
+      pc.pool,
+      pc.token,
+      pc.post_liquidity AS liquidity,
+      pc.post_liquidity * pc.usd_per_unit AS tvl
+    FROM
+      pool_changes pc
+    JOIN (
+      SELECT
+        pool,
+        MAX(block_time) AS max_block_time
+      FROM
+        pool_changes
+      GROUP BY
+        pool
+    ) AS latest ON pc.pool = latest.pool
+    AND pc.block_time = latest.max_block_time
+    GROUP BY
+      pc.pool
+    ORDER BY
+      pc.block_time DESC;
+  `);
+
+  const plays = await all(`
+    SELECT
+      pc.block_time,
+      pc.pool,
+      pc.token,
+      pc.pool_liquidity AS liquidity
+    FROM
+      settled_games pc
+    JOIN (
+      SELECT
+        pool,
+        MAX(block_time) AS max_block_time
+      FROM
+        settled_games
+      GROUP BY
+        pool
+    ) AS latest ON pc.pool = latest.pool
+    AND pc.block_time = latest.max_block_time
+    GROUP BY
+      pc.pool
+    ORDER BY
+      pc.block_time DESC;
+  `);
+
+  const tokens = Array.from(new Set(changes.map((x) => x.token)));
+  const prices = await getPrices(tokens, 30);
+
+  const pools = await Promise.all(
+    changes.map(async (poolChange) => {
+      const lastPlay = plays.find((x) => x.pool === poolChange.pool);
+      const mostRecent = lastPlay?.block_time > poolChange?.block_time ? lastPlay : poolChange;
+      return {
+        block_time: mostRecent.block_time,
+        pool: mostRecent.pool,
+        token: mostRecent.token,
+        liquidity: mostRecent.liquidity,
+        tvl: mostRecent.liquidity * prices[mostRecent.token].usdPerUnit,
+      };
+    })
+  );
+
+  const tvl = pools.reduce((tvl, pool) => tvl + pool.tvl, 0);
+
+  return { pools: pools.sort((a, b) => b.tvl - a.tvl), tvl };
+};
 
 export const findAllPoolCreations = async () => {
-  const sigs = (await all('select * from signatures')).map((x) => x.signature)
-  const games = (await all('select signature from settled_games')).map((x) => x.signature)
-  const changes = (await all('select signature from pool_changes')).map((x) => x.signature)
-  const known = new Set([...games, ...changes])
+  const sigs = (await all('select * from signatures')).map((x) => x.signature);
+  const games = (await all('select signature from settled_games')).map((x) => x.signature);
+  const changes = (await all('select signature from pool_changes')).map((x) => x.signature);
+  const known = new Set([...games, ...changes]);
 
-  console.log(sigs[0])
-  const unknownSigs = sigs.filter((x) => !known.has(x))
-  const batches = createBatches(unknownSigs, 100)
+  const unknownSigs = sigs.filter((x) => !known.has(x));
+  const batches = createBatches(unknownSigs, 100);
 
-  const stuff: {signature: string, creator: string, poolAddress: string, token: string, time: number}[] = []
-
-  let batchId = 0
+  let batchId = 0;
   for (const batch of batches) {
-    console.log('Batch', batchId, ' / ', batches.length, batch[0])
-    const transactions = (await connection.getParsedTransactions(
-      batch,
-      {
-        maxSupportedTransactionVersion: 0,
-        commitment: 'confirmed',
-      },
-    )).flatMap((x) => x ? [x] : [])
-
+    const transactions = (await provider.getTransactionBatch(batch)).flatMap((x) => (x ? [x] : []));
     for (const tx of transactions) {
-      const gambaIx = tx.transaction.message.instructions.find((x) => x.programId.equals(PROGRAM_ID)) as PartiallyDecodedInstruction
+      const gambaIx = tx.data.instructions.find((x) => x.programId.equals(PROGRAM_ID));
       if (gambaIx) {
-        const ix = coder.instruction.decode(gambaIx.data, 'base58')
-        const accountMetas = tx.transaction.message.accountKeys.map(({ pubkey, signer, writable }) => ({
-          pubkey,
-          isSigner: signer,
-          isWritable: writable,
-        }))
-        const formatted = coder.instruction.format(ix, accountMetas)
+        const ix = sdk.decodeInstruction(gambaIx.data);
         if (ix.name === 'poolInitialize') {
-          console.log('PoolTx', ix, formatted)
+          console.log('PoolTx', ix);
         }
       }
     }
-
-    batchId++
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    batchId++;
   }
-
-  console.log(stuff.map((x) => x.signature))
-}
+};
