@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-export type GambaEvent<EventData> = {
+export type WinbaEvent<EventData> = {
   event: string;
   data: EventData;
   signature: string;
@@ -10,7 +10,7 @@ export type GambaEvent<EventData> = {
 
 export const parseTransactionEvents = (logs: ethers.providers.Log[]) => {
   try {
-    const parsedEvents: GambaEvent<any>[] = logs.map(log => {
+    const parsedEvents: WinbaEvent<any>[] = logs.map(log => {
       const parsed = ethers.utils.defaultAbiCoder.decode(
         ['string', 'bytes'],
         log.data
@@ -29,7 +29,7 @@ export const parseTransactionEvents = (logs: ethers.providers.Log[]) => {
   }
 };
 
-export const parseGambaTransaction = async (
+export const parseWinbaTransaction = async (
   provider: ethers.providers.Provider,
   txHash: string
 ) => {
@@ -45,17 +45,17 @@ export const parseGambaTransaction = async (
   }));
 };
 
-export const fetchGambaTransactionsFromHashes = async (
+export const fetchWinbaTransactionsFromHashes = async (
   provider: ethers.providers.Provider,
   txHashes: string[]
 ) => {
   const transactions = await Promise.all(
-    txHashes.map(txHash => parseGambaTransaction(provider, txHash))
+    txHashes.map(txHash => parseWinbaTransaction(provider, txHash))
   );
   return transactions.flat();
 };
 
-export const fetchGambaTransactions = async (
+export const fetchWinbaTransactions = async (
   provider: ethers.providers.Provider,
   address: string,
   startBlock: number,
