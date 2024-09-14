@@ -1,59 +1,51 @@
-import { signal } from '@preact/signals-react'
-import { useConnection } from '@solana/wallet-adapter-react'
-import { AccountInfo, PublicKey } from '@solana/web3.js'
-import React from 'react'
+import { useSmartWallet, useAddress, useDisconnect } from "@thirdweb-dev/react";
+import { useEffect, useState } from "react";
 
-const DEFAULT_DEBOUNCE_MS = 1
-const nextBatch = signal(new Set<string>)
-const data = signal<Record<string, AccountInfo<Buffer> | null>>({})
+// Hook to manage user account interactions with Telegram Mini App API
+export const useAccount = () => {
+  const address = useAddress(); // Get the connected wallet address
+  const { smartWallet, connect } = useSmartWallet(); // Use smart wallet from Thirdweb
+  const disconnectWallet = useDisconnect(); // Function to disconnect the wallet
 
-let fetchTimeout: any
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [telegramUser, setTelegramUser] = useState<any>(null); // Store Telegram user info
 
-export function useAccount<T>(
-  address: PublicKey,
-  decoder: (x: AccountInfo<Buffer> | null) => T,
-) {
-  const { connection } = useConnection()
-  const fetchedData = data.value[address.toString()]
+  useEffect(() => {
+    // Initialize Telegram Web App API
+    const tg = window.Telegram.WebApp;
+    tg.ready(); // Set up the Telegram Mini App
 
-  React.useEffect(() => {
-    // Clear old timeout whenever a new address should get fetched
-    nextBatch.value.add(address.toString())
-
-    clearTimeout(fetchTimeout)
-
-    fetchTimeout = setTimeout(async () => {
-      const unique = Array.from(nextBatch.value).filter((x) => !Object.keys(data.value).includes(x))
-      if (!unique.length) {
-        return
-      }
-
-      const accounts = await connection.getMultipleAccountsInfo(unique.map((x) => new PublicKey(x)))
-
-      console.debug('Fetching accounts', unique)
-
-      const newData = unique.reduce((prev, curr, ci) => {
-        return { ...prev, [curr]: accounts[ci] }
-      }, {} as Record<string, AccountInfo<Buffer> | null>)
-
-      data.value = { ...data.value, ...newData }
-      nextBatch.value.clear()
-    }, DEFAULT_DEBOUNCE_MS)
-
-    const subscription = connection.onAccountChange(address, (info) => {
-      data.value = { ...data.value, [address.toString()]: info }
-    })
-
-    return () => {
-      clearTimeout(fetchTimeout)
-      connection.removeAccountChangeListener(subscription)
+    const user = tg.initDataUnsafe?.user;
+    if (user) {
+      setTelegramUser(user); // Store the Telegram user data
     }
-  }, [address.toString()])
 
-  try {
-    return decoder(fetchedData)
-  } catch (error) {
-    console.log(error)
-    return
-  }
-}
+    console.log("Telegram User: ", user);
+  }, []);
+
+  useEffect(() => {
+    // Check if the user is connected to the smart wallet
+    setIsConnected(!!address);
+  }, [address]);
+
+  const connectSmartWallet = async () => {
+    try {
+      await connect({
+        chainId: 10, // OP (Optimism) chain ID, adjust as needed
+        walletOptions: {
+          factoryAddress: "0xYourFactoryAddress", // Replace with your Smart Wallet Factory address
+        },
+      });
+    } catch (error) {
+      console.error("Failed to connect smart wallet", error);
+    }
+  };
+
+  return {
+    address,                // The user's wallet address
+    isConnected,            // Boolean indicating if the wallet is connected
+    connectSmartWallet,     // Function to trigger the smart wallet connection
+    disconnectWallet,       // Function to disconnect the wallet
+    telegramUser,           // The Telegram user information
+  };
+};
