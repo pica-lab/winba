@@ -8,10 +8,18 @@ export const useSendTransaction = () => {
   const [isSending, setIsSending] = useState<boolean>(false); // Loading state for sending transaction
   const [error, setError] = useState<string | null>(null); // Error state
 
+  // Load contract address from .env
+  const contractAddress = process.env.REACT_APP_CONTRACT_ADDRESS;
+
   // Function to send a transaction
   const sendTransaction = async (to: string, value: ethers.BigNumber) => {
     if (!smartWallet) {
       setError("Smart wallet not connected");
+      return;
+    }
+
+    if (!contractAddress) {
+      setError("Contract address not provided in environment variables");
       return;
     }
 
@@ -25,7 +33,7 @@ export const useSendTransaction = () => {
 
       // Create transaction
       const tx = await signer.sendTransaction({
-        to,
+        to: contractAddress, // Use the contract address from the environment
         value,
       });
 
