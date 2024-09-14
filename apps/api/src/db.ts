@@ -1,6 +1,6 @@
-import sqlite3 from 'sqlite3'
+import sqlite3 from 'sqlite3';
 
-export const db = new sqlite3.Database('gamba.db')
+export const db = new sqlite3.Database('winba.db');
 
 export const setupDb = () => {
   return db.exec(`
@@ -41,43 +41,33 @@ export const setupDb = () => {
       multiplier_bps INTEGER,
       creator_fee INTEGER,
       pool_fee INTEGER,
-      gamba_fee INTEGER,
+      winba_fee INTEGER,
       jackpot_fee INTEGER,
       jackpot INTEGER,
       pool_liquidity INTEGER,
       usd_per_unit REAL
     );
-  `)
-}
+  `);
+};
 
-export const all = (
-  query: string,
-  params?: any,
-) => {
+export const all = (query: string, params?: any) => {
   return new Promise<any[]>((resolve, reject) => {
-    db.all(query, params,
-      (error, rows) => {
-        if (error) {
-          return reject(error)
-        }
-        resolve(rows)
-      },
-    )
-  })
-}
+    db.all(query, params, (error, rows) => {
+      if (error) {
+        return reject(error);
+      }
+      resolve(rows);
+    });
+  });
+};
 
-export const get = (
-  query: string,
-  params?: any,
-) => {
+export const get = (query: string, params?: any) => {
   return new Promise<any>((resolve, reject) => {
-    db.get(query, params,
-      (error, row) => {
-        if (error) {
-          return reject(error)
-        }
-        resolve(row)
-      },
-    )
-  })
-}
+    db.get(query, params, (error, row) => {
+      if (error) {
+        return reject(error);
+      }
+      resolve(row);
+    });
+  });
+};
