@@ -27,4 +27,4 @@ export const makeDecoder = (accountName: string) => {
 export const decodePlayer = makeDecoder('player');
 export const decodeGame = makeDecoder('game');
 export const decodePool = makeDecoder('pool');
-export const decodeGambaState = makeDecoder('gambaState');
+export const decodeWinbaState = makeDecoder('winbaState');
