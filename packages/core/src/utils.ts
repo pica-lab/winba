@@ -1,86 +1,53 @@
-import { NATIVE_MINT } from '@solana/spl-token'
-import { Connection, PublicKey } from '@solana/web3.js'
-import { BPS_PER_WHOLE, GameState } from '.'
-import { decodeGame } from './decoders'
-import { getGameAddress } from './pdas'
+```typescript
+import { ethers } from 'ethers';
 
-export const basisPoints = (percent: number) => {
-  return Math.round(percent * BPS_PER_WHOLE)
-}
+// Utility function to convert basis points to a percentage
+export const basisPoints = (bps: number): ethers.BigNumber => {
+  return ethers.BigNumber.from(bps).mul(ethers.BigNumber.from(10_000)).div(100);
+};
 
-export const isNativeMint = (pubkey: PublicKey) => NATIVE_MINT.equals(pubkey)
+// Utility function to calculate the percentage of a given amount based on basis points
+export const calculatePercentage = (amount: ethers.BigNumber, bps: number): ethers.BigNumber => {
+  return amount.mul(bps).div(10_000);
+};
 
-export const hmac256 = async (secretKey: string, message: string) => {
-  const encoder = new TextEncoder
-  const messageUint8Array = encoder.encode(message)
-  const keyUint8Array = encoder.encode(secretKey)
-  const cryptoKey = await crypto.subtle.importKey('raw', keyUint8Array, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-  const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageUint8Array)
-  return Array.from(new Uint8Array(signature)).map((b) => b.toString(16).padStart(2, '0')).join('')
-}
+// Utility function to generate a unique client seed
+export const generateClientSeed = (): string => {
+  return ethers.utils.hexlify(ethers.utils.randomBytes(16));
+};
 
-export const getGameHash = (rngSeed: string, clientSeed: string, nonce: number) => {
-  return hmac256(rngSeed, [clientSeed, nonce].join('-'))
-}
+// Utility function to validate Ethereum addresses
+export const isValidAddress = (address: string): boolean => {
+  return ethers.utils.isAddress(address);
+};
 
-export const getResultNumber = async (rngSeed: string, clientSeed: string, nonce: number) => {
-  const hash = await getGameHash(rngSeed, clientSeed, nonce)
-  return parseInt(hash.substring(0, 5), 16)
-}
+// Utility function to format an address (e.g., shorten for display purposes)
+export const formatAddress = (address: string, startLength = 6, endLength = 4): string => {
+  return `${address.substring(0, startLength)}...${address.substring(address.length - endLength)}`;
+};
 
-export type GameResult = ReturnType<typeof parseResult>
+// Utility function to convert a number to BigNumber
+export const toBigNumber = (value: number | string): ethers.BigNumber => {
+  return ethers.BigNumber.from(value);
+};
 
-export const parseResult = (
-  state: GameState,
-) => {
-  const clientSeed = state.clientSeed
-  const bet = state.bet.map((x) => x / BPS_PER_WHOLE)
-  const nonce = state.nonce.toNumber() - 1
-  const rngSeed = state.rngSeed
-  const resultIndex = state.result.toNumber()
-  const multiplier = bet[resultIndex]
-  const wager = state.wager.toNumber()
-  const payout = (wager * multiplier)
-  const profit = (payout - wager)
+// Utility function to sleep for a specified number of milliseconds (used for delays)
+export const sleep = (ms: number): Promise<void> => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
 
-  return {
-    creator: state.creator,
-    user: state.user,
-    rngSeed,
-    clientSeed,
-    nonce,
-    bet,
-    resultIndex,
-    wager,
-    payout,
-    profit,
-    multiplier,
-    token: state.tokenMint,
-    bonusUsed: state.bonusUsed.toNumber(),
-    jackpotWin: state.jackpotPayout.toNumber(),
-  }
-}
+// Utility function to parse a BigNumber to a formatted string
+export const formatBigNumber = (value: ethers.BigNumber, decimals = 18): string => {
+  return ethers.utils.formatUnits(value, decimals);
+};
 
-export async function getNextResult(
-  connection: Connection,
-  user: PublicKey,
-  prevNonce: number,
-) {
-  return new Promise<GameResult>((resolve, reject) => {
-    const listener = connection.onAccountChange(
-      getGameAddress(user),
-      async (account) => {
-        const current = decodeGame(account)
-        if (!current) {
-          connection.removeAccountChangeListener(listener)
-          return reject('Game account was closed')
-        }
-        if (current.nonce.toNumber() === prevNonce + 1) {
-          connection.removeAccountChangeListener(listener)
-          const result = await parseResult(current)
-          return resolve(result)
-        }
-      },
-    )
-  })
-}
+// Utility function to parse a formatted string back to BigNumber
+export const parseUnits = (value: string, decimals = 18): ethers.BigNumber => {
+  return ethers.utils.parseUnits(value, decimals);
+};
+
+// Utility function to check if a BigNumber is zero
+export const isZero = (value: ethers.BigNumber): boolean => {
+  return value.isZero();
+};
+```
