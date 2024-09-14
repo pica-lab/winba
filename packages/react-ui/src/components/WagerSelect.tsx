@@ -14,14 +14,14 @@ export interface WagerSelectProps {
  * @deprecated Use WagerInput with "options" prop
  */
 export function WagerSelect(props: WagerSelectProps) {
-  const gamba = useWinba()
+  const winba = useWinba()
   return (
     <Select
       className={props.className}
       options={props.options}
       value={props.value}
       onChange={props.onChange}
-      disabled={gamba.isPlaying}
+      disabled={winba.isPlaying}
       label={(value) => (
         <TokenValue amount={value} />
       )}
