@@ -1,57 +1,53 @@
-import { useBonfidaName, usePlatformMeta } from "@/hooks"
-import { getPlatformMeta } from "@/platforms"
-import { Avatar, Flex, Text } from "@radix-ui/themes"
-import { AvatarProps } from "@radix-ui/themes/dist/cjs/components/avatar"
-import { PublicKey } from "@solana/web3.js"
-import { minidenticon } from 'minidenticons'
-import React from "react"
+import { useAddress, useEnsName } from "@thirdweb-dev/react"; // Thirdweb hooks for Ethereum
+import { Avatar, Flex, Text } from "@radix-ui/themes";
+import { AvatarProps } from "@radix-ui/themes/dist/cjs/components/avatar";
+import { minidenticon } from 'minidenticons';
+import React from "react";
 
 interface AccountItemProps {
-  address: PublicKey | string
-  name?: string
-  image?: string
-  color?: AvatarProps["color"]
-  avatarSize?: AvatarProps["size"]
+  address: string;
+  name?: string;
+  image?: string;
+  color?: AvatarProps["color"];
+  avatarSize?: AvatarProps["size"];
 }
 
-export const truncateString = (s: string, startLen = 4, endLen = startLen) => s.slice(0, startLen) + "..." + s.slice(-endLen)
+export const truncateString = (s: string, startLen = 4, endLen = startLen) => s.slice(0, startLen) + "..." + s.slice(-endLen);
 
-type AccountItemProps2 = Pick<AccountItemProps, "avatarSize" | "address">
+type AccountItemProps2 = Pick<AccountItemProps, "avatarSize" | "address">;
 
 export function PlatformAccountItem(props: AccountItemProps2) {
-  const meta = usePlatformMeta(props.address)
+  const ensName = useEnsName(props.address); // Use ENS name from Thirdweb
   return (
     <AccountItem
       {...props}
-      image={meta.image}
-      name={meta.name}
+      name={ensName}
     />
-  )
+  );
 }
 
 export function Identicon(props: AccountItemProps2) {
-  const domainName = useBonfidaName(props.address)
-  const image = React.useMemo(() => 'data:image/svg+xml;utf8,' + encodeURIComponent(minidenticon(props.address.toString())), [props.address])
+  const image = React.useMemo(() => 'data:image/svg+xml;utf8,' + encodeURIComponent(minidenticon(props.address)), [props.address]);
   return (
     <Avatar
       size={props.avatarSize ?? "1"}
       src={image}
-      fallback={props.address.toString().substring(0, 2)}
+      fallback={props.address.substring(0, 2)}
     />
-  )
+  );
 }
 
 export function PlayerAccountItem(props: AccountItemProps2) {
-  const domainName = useBonfidaName(props.address)
-  const image = React.useMemo(() => 'data:image/svg+xml;utf8,' + encodeURIComponent(minidenticon(props.address.toString())), [props.address])
+  const ensName = useEnsName(props.address);
+  const image = React.useMemo(() => 'data:image/svg+xml;utf8,' + encodeURIComponent(minidenticon(props.address)), [props.address]);
   return (
     <AccountItem
       color="orange"
       {...props}
-      name={domainName}
+      name={ensName}
       image={image}
     />
-  )
+  );
 }
 
 export function AccountItem({ address, name, image, color, avatarSize }: AccountItemProps) {
@@ -61,11 +57,11 @@ export function AccountItem({ address, name, image, color, avatarSize }: Account
         size={avatarSize ?? "1"}
         color={color}
         src={image}
-        fallback={address.toString().substring(0, 2)}
+        fallback={address.substring(0, 2)}
       />
       <Text>
-        {name ?? truncateString(address.toString())}
+        {name ?? truncateString(address)}
       </Text>
     </Flex>
-  )
+  );
 }
