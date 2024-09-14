@@ -1,53 +1,44 @@
-import { signal } from "@preact/signals-react"
-import { PublicKey } from "@solana/web3.js"
-import React from "react"
+import React from "react";
+import { ethers } from "ethers";
+import useSWR from "swr";
 
-function createBatches<T>(array: T[], batchSize: number) {
-  const batches: T[][] = []
-  for (let i = 0; i < array.length; i += batchSize) {
-    batches.push(array.slice(i, i + batchSize))
+interface NameRecord {
+  name: string;
+  domain: string;
+}
+
+/**
+ * Fetches the ENS (Ethereum Name Service) name associated with an Ethereum address using the ethers.js library.
+ */
+const fetchENSName = async (provider: ethers.providers.Provider, address: string): Promise<NameRecord | undefined> => {
+  try {
+    const ensName = await provider.lookupAddress(address);
+    if (!ensName) return undefined;
+
+    return {
+      name: ensName,
+      domain: "ens",  // You could add more logic if you're handling multiple domain systems
+    };
+  } catch (error) {
+    console.error("Failed to fetch ENS name:", error);
+    return undefined;
   }
-  return batches
+};
+
+/**
+ * React hook to retrieve ENS name for an Ethereum address.
+ */
+export function useENSName(address: string) {
+  const provider = new ethers.providers.Web3Provider(window.ethereum); // Assume MetaMask provider or similar
+  const { data } = useSWR(address ? `ens-name-${address}` : null, () => fetchENSName(provider, address));
+
+  return data?.name ?? undefined;
 }
 
-const FETCH_DEBOUNCE_MS = 200
-
-const addresses = signal(new Set<string>)
-const domainsByAddress = signal<Record<string, string[]>>({})
-
-let fetchTimeout: any
-
-const fetchBonfidaName = async (token: string) => {
-  addresses.value = new Set([...Array.from(addresses.value), token])
-
-  clearTimeout(fetchTimeout)
-
-  fetchTimeout = setTimeout(async () => {
-    const unique = Array.from(addresses.value).filter((x) => !Object.keys(domainsByAddress.value).includes(x))
-
-    if (!unique.length) return
-    const batches = createBatches(unique, 20)
-
-    await Promise.all(
-      batches.map(
-        async (batch) => {
-          const req = await fetch(`https://sns-api.bonfida.com/v2/user/domains/${batch.join(',')}`)
-          const res = await req.json() as Record<string, string[]>
-
-          domainsByAddress.value = {...domainsByAddress.value, ...res}
-        }
-      )
-    )
-
-    addresses.value = new Set
-  }, FETCH_DEBOUNCE_MS)
-}
-
-export function useBonfidaName(mint: string | PublicKey) {
-  React.useEffect(() => {
-    fetchBonfidaName(mint.toString())
-  }, [mint])
-
-  const addresses = domainsByAddress.value[mint.toString()]
-  return addresses ? addresses[0] + ".sol" : undefined
+/**
+ * Example component usage for showing ENS name or default to address.
+ */
+export function AddressDisplay({ address }: { address: string }) {
+  const ensName = useENSName(address);
+  return <span>{ensName ? ensName : `${address.slice(0, 6)}...${address.slice(-4)}`}</span>;
 }
