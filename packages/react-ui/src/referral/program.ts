@@ -1,44 +1,64 @@
-import { AnchorProvider, Program } from '@coral-xyz/anchor'
-import { PublicKey } from '@solana/web3.js'
-import { REFERRAL_IDL } from './idl'
+import { ethers, Contract } from 'ethers';
+import { AbiItem } from 'web3-utils';
+import { REFERRAL_ABI } from './abi'; // Assuming you have an ABI file for the referral contract
 
-export const PROGRAM_ID = new PublicKey('RefwFk2PPNd9bPehSyAkrkrehSHkvz6mTAHTNe8v9vH')
+// Get the contract address from environment variables
+const PROGRAM_ID = process.env.REACT_APP_REFERRAL_CONTRACT_ADDRESS || ''; // Fallback to empty string if not defined
 
-export const getReferrerPda = (creator: PublicKey, authority: PublicKey) =>
-  PublicKey.findProgramAddressSync([
-    creator.toBytes(),
-    authority.toBytes(),
-  ], PROGRAM_ID)[0]
+if (!PROGRAM_ID) {
+  throw new Error("Referral contract address is not defined in the environment variables");
+}
 
+// Get referrer address for the user using ethers.js
+export const getReferrerPda = (creator: string, userAddress: string) => {
+  // Assuming you want a unique address for referrals based on the creator and user
+  return ethers.utils.solidityKeccak256(["address", "address"], [creator, userAddress]);
+};
+
+// Create a referral using the contract
 export const createReferral = async (
-  provider: AnchorProvider,
-  creator: PublicKey,
-  referAccount: PublicKey,
+  provider: ethers.providers.Provider,
+  creator: string,
+  referAccount: string,
 ) => {
-  const referralProgram = new Program(REFERRAL_IDL, PROGRAM_ID, provider)
-  return referralProgram.methods
-    .configReferAccount(referAccount)
-    .accounts({ referAccount: getReferrerPda(creator, provider.wallet.publicKey), creator })
-    .instruction()
-}
+  const signer = provider.getSigner();
+  
+  const referralContract = new Contract(PROGRAM_ID, REFERRAL_ABI, signer);
 
+  // Call the method to configure referral account
+  const tx = await referralContract.configReferAccount(referAccount, { from: creator });
+  return tx.wait(); // Wait for transaction confirmation
+};
+
+// Close a referral using the contract
 export const closeReferral = async (
-  provider: AnchorProvider,
-  creator: PublicKey,
+  provider: ethers.providers.Provider,
+  creator: string,
 ) => {
-  const referralProgram = new Program(REFERRAL_IDL, PROGRAM_ID, provider)
-  return referralProgram.methods
-    .closeReferAccount()
-    .accounts({ referAccount: getReferrerPda(creator, provider.wallet.publicKey), creator })
-    .instruction()
-}
+  const signer = provider.getSigner();
+  
+  const referralContract = new Contract(PROGRAM_ID, REFERRAL_ABI, signer);
 
+  // Call the method to close referral account
+  const tx = await referralContract.closeReferAccount({ from: creator });
+  return tx.wait(); // Wait for transaction confirmation
+};
+
+// Fetch referral details from the contract
 export const fetchReferral = async (
-  provider: AnchorProvider,
-  pda: PublicKey,
+  provider: ethers.providers.Provider,
+  pda: string, // Pass the address of the referral account
 ) => {
-  const referralProgram = new Program(REFERRAL_IDL, PROGRAM_ID, provider)
-  const account = await referralProgram.account.referAccount.fetch(pda)
-  if (!account) return null
-  return account.referrer
-}
+  const signer = provider.getSigner();
+
+  const referralContract = new Contract(PROGRAM_ID, REFERRAL_ABI, signer);
+
+  // Fetch the referral account
+  try {
+    const account = await referralContract.referralAccounts(pda);
+    return account.referrer; // Assuming the contract stores referrer information
+  } catch (error) {
+    console.error('Error fetching referral:', error);
+    return null;
+  }
+};
