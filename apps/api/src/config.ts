@@ -20,4 +20,4 @@ export const config = () => {
   configed = true
   return process.env
 }
-```
+
