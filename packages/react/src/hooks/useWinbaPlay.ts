@@ -1,89 +1,34 @@
-import { useWallet } from '@solana/wallet-adapter-react'
-import { PublicKey, TransactionInstruction } from '@solana/web3.js'
-import { NATIVE_MINT, SYSTEM_PROGRAM, getPoolAddress } from 'gamba-core-v2'
-import React from 'react'
-import { useGambaProvider } from '.'
-import { GambaContext } from '../GambaProvider'
-import { GambaPluginContext, GambaPluginInput } from '../plugins'
-import { SendTransactionOptions, throwTransactionError, useSendTransaction } from './useSendTransaction'
+import React, { useState } from "react";
+import { useWinbaPlay } from "./hooks/useWinbaPlay";
+import winbaAbi from "../abis/winbaAbi.json"; // ABI for Winba smart contract
+import { ethers } from "ethers";
 
-export interface GambaPlayInput {
-  wager: number
-  bet: number[]
-  creator: string | PublicKey
-  creatorFee?: number
-  jackpotFee?: number
-  clientSeed?: string
-  token?: string | PublicKey
-  poolAuthority?: string | PublicKey
-  metadata?: (string | number)[]
-  useBonus?: boolean
-}
+const contractAddress = "0xYourContractAddress"; // Replace with your contract address
 
-export function useGambaPlay() {
-  const { connected } = useWallet()
-  const sendTx = useSendTransaction()
-  const context = React.useContext(GambaContext)
-  const provider = useGambaProvider()
+const PlayGameComponent = () => {
+  const { playGame, isPlaying, playError } = useWinbaPlay(contractAddress, winbaAbi);
+  const [wager, setWager] = useState(ethers.utils.parseEther("0.1")); // Example wager
+  const [clientSeed, setClientSeed] = useState("example_seed");
+  const bet = [0, 1]; // Example bet array
+  const poolAddress = "0xYourPoolAddress"; // Replace with your pool address
+  const tokenAddress = "0xYourTokenAddress"; // Replace with the token address
+  const creator = "0xCreatorAddress"; // Replace with the creator address
+  const creatorFee = 100; // Example creator fee in basis points (1%)
+  const jackpotFee = 200; // Example jackpot fee in basis points (2%)
+  const metadata = "example_metadata";
+  const useBonus = false;
 
-  return async function play(
-    input: GambaPlayInput,
-    additionalInstructions: TransactionInstruction[] = [],
-    opts?: SendTransactionOptions & { lookupTables?: PublicKey[] },
-  ) {
-    const creator = new PublicKey(input.creator)
-    const creatorFee = input.creatorFee ?? 0
-    const jackpotFee = input.jackpotFee ?? 0
-    const meta = input.metadata?.join(':') ?? ''
-    const token = new PublicKey(input.token ?? NATIVE_MINT)
-    const poolAuthority = new PublicKey(input.poolAuthority ?? SYSTEM_PROGRAM)
+  const handlePlayGame = async () => {
+    await playGame(wager, bet, clientSeed, poolAddress, tokenAddress, creator, creatorFee, jackpotFee, metadata, useBonus);
+  };
 
-    if (!connected) {
-      throw throwTransactionError(new Error('NOT_CONNECTED'))
-    }
+  return (
+    <div>
+      <h2>Play Game on Winba</h2>
+      {playError && <p style={{ color: "red" }}>{playError}</p>}
+      {isPlaying ? <p>Playing the game...</p> : <button onClick={handlePlayGame}>Play Game</button>}
+    </div>
+  );
+};
 
-    const pluginInput: GambaPluginInput = {
-      wallet: provider.user,
-      creator,
-      token,
-      wager: input.wager,
-      bet: input.bet,
-      input,
-    }
-
-    const pluginContext: GambaPluginContext = {
-      creatorFee: creatorFee,
-      provider,
-    }
-    const pluginInstructions: TransactionInstruction[] = []
-
-    for (const plugin of context.plugins) {
-      const resolved = await plugin(pluginInput, pluginContext)
-      if (resolved) {
-        pluginInstructions.push(...resolved)
-      }
-    }
-
-    const pool = getPoolAddress(token, poolAuthority)
-
-    return sendTx(
-      [
-        ...additionalInstructions, 
-        provider.play(
-          input.wager,
-          input.bet,
-          input.clientSeed ?? '',
-          pool,
-          token,
-          creator,
-          pluginContext.creatorFee,
-          jackpotFee,
-          meta,
-          input.useBonus ?? false,
-        ),
-        ...pluginInstructions,
-      ],
-      { ...opts, label: 'play', lookupTable: opts?.lookupTables }
-    )
-  }
-}
+export default PlayGameComponent;
