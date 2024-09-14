@@ -1,10 +1,11 @@
 {
-  "name": "gamba-react-v2",
-  "private": false,
-  "version": "1.2.0",
+  "name": "winba-react",
+  "version": "1.0.0",
+  "description": "React hooks and components for Winba SDK",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "sideEffects": false,
   "files": [
     "dist/**"
   ],
@@ -12,39 +13,36 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --external react --dts",
-    "dev": "tsup src/index.ts --watch --format cjs,esm --external react --dts",
-    "lint": "tsc",
+    "dev": "tsup src/index.ts --watch --format cjs,esm --dts",
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "lint": "eslint src --ext .ts,.tsx",
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.27.0",
-    "@preact/signals-react": "^1.3.8",
-    "@solana/spl-token": "^0.3.8",
-    "@solana/wallet-adapter-react": "^0.15.35",
-    "@solana/web3.js": "^1.93.0",
-    "gamba-core-v2": "workspace:*",
-    "react": "^18.3.1",
-    "swr": "^2.2.4",
-    "zustand": "^4.4.3"
+    "@thirdweb-dev/react": "^3.0.0",  // Thirdweb React SDK
+    "@thirdweb-dev/sdk": "^3.0.0",    // Thirdweb SDK
+    "ethers": "^5.7.0",               // ethers.js for blockchain interaction
+    "typescript": "^5.2.2",           // TypeScript for type definitions
+    "dotenv": "^10.0.0"               // dotenv for environment variable management
   },
   "devDependencies": {
-    "@changesets/cli": "^2.26.2",
-    "@types/react": "^18.2.13",
-    "assert": "^2.0.0",
-    "tsup": "^7.2.0",
-    "typescript": "^5.2.2"
+    "eslint": "^8.48.0",              // ESLint for linting
+    "tsup": "^7.2.0",                 // tsup for building the package
+    "@types/react": "^18.0.0",        // TypeScript definitions for React
+    "@types/node": "^18.0.0",         // TypeScript definitions for Node.js
+    "@types/ethers": "^5.7.0"         // TypeScript definitions for ethers.js
   },
   "peerDependencies": {
-    "@coral-xyz/anchor": "^0.27.0",
-    "@solana/wallet-adapter-react": "^0.15.35",
-    "@solana/web3.js": "^1.93.0",
-    "gamba-core-v2": "*",
-    "react": "^18.3.1"
+    "react": "^18.0.0",               // React as a peer dependency
+    "react-dom": "^18.0.0"            // React DOM as a peer dependency
   },
-  "peerDependenciesMeta": {
-    "@solana/wallet-adapter-react": {
-      "optional": true
-    }
-  }
+  "keywords": [
+    "winba",
+    "react",
+    "blockchain",
+    "smartwallet",
+    "thirdweb"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
 }
