@@ -1,55 +1,95 @@
-import { PublicKey, TransactionInstruction } from '@solana/web3.js'
-import { GambaPlayInput, useGambaPlay, useNextResult } from 'gamba-react-v2'
-import React from 'react'
-import { useUserBalance } from '.'
-import { GambaPlatformContext } from '../GambaPlatformProvider'
-import { GameContext } from '../GameContext'
-import { useFakeToken } from './useFakeToken'
+import { useState, useEffect, useContext } from 'react';
+import { ethers } from 'ethers';
+import { useSmartWallet } from '@thirdweb-dev/react';
+import { WinbaPlatformContext } from '../WinbaPlatformProvider'; // Updated from GambaPlatformProvider
+import { UiPoolState, GameResult, WinbaPlayInput, throwTransactionError } from 'winba-core-v2'; // Updated imports
+import { getPoolAddress, SYSTEM_PROGRAM } from 'winba-core-v2'; // Updated imports
 
-export function useGame() {
-  const game = React.useContext(GameContext)
-  const fake = useFakeToken()
-  const context = React.useContext(GambaPlatformContext)
-  const balances = useUserBalance()
-  const getNextResult = useNextResult()
-  const gambaPlay = useGambaPlay()
+let betBuffer: WinbaPlayInput; // Changed from GambaPlayInput
 
-  const result = async () => {
-    if (fake.isActive) {
-      return fake.result()
-    }
-    return getNextResult()
-  }
+export const useGame = (contractAddress: string, abi: any) => {
+  const { smartWallet } = useSmartWallet(); // Get the connected smart wallet
+  const [isLoading, setIsLoading] = useState<boolean>(false); // Loading state
+  const [error, setError] = useState<string | null>(null); // Error state
+  const context = useContext(WinbaPlatformContext); // Updated from GambaPlatformContext
 
-  const play = async (
-    input: Pick<GambaPlayInput, 'wager' | 'bet' | 'metadata'>,
-    instructions: TransactionInstruction[] = [],
-  ) => {
-    const metaArgs = input.metadata ?? []
-    const metadata = ['0', game.game.id, ...metaArgs]
-
-    const gameInput: GambaPlayInput = {
-      ...input,
-      creator: new PublicKey(context.platform.creator),
-      metadata,
-      clientSeed: context.clientSeed,
-      creatorFee: context.defaultCreatorFee,
-      jackpotFee: context.defaultJackpotFee,
-      token: context.selectedPool.token, // ,getPoolAddress(context.selectedPool.token, ),
-      poolAuthority: context.selectedPool.authority,
-      useBonus: balances.bonusBalance > 0,
+  const playGame = async (input: WinbaPlayInput) => {
+    if (!smartWallet) {
+      throw new Error('Smart wallet not connected');
     }
 
-    if (fake.isActive) {
-      return fake.play(gameInput)
-    }
+    try {
+      setIsLoading(true);
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner(smartWallet.address);
+      const contract = new ethers.Contract(contractAddress, abi, signer);
 
-    return gambaPlay(gameInput, instructions)
-  }
+      // Deduct wager from the player's balance
+      if (context.selectedPool.token.equals(FAKE_TOKEN_MINT)) {
+        if (context.fakeBalance < input.wager) {
+          throw throwTransactionError(new Error('Insufficient funds'));
+        }
+        context.setFakeBalance(context.fakeBalance - input.wager);
+      }
+
+      betBuffer = input;
+
+      const tx = await contract.playGame(
+        input.wager,
+        input.bet,
+        input.clientSeed,
+        input.poolAddress,
+        input.tokenAddress,
+        input.creator,
+        input.creatorFee,
+        input.jackpotFee,
+        input.metadata,
+        input.useBonus
+      );
+
+      await tx.wait(); // Wait for the transaction to be mined
+    } catch (err) {
+      console.error('Error playing game:', err);
+      setError('Failed to play the game');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getResult = async (): Promise<GameResult> => {
+    if (!betBuffer) throw new Error('No game in progress');
+
+    const resultIndex = Math.random() * betBuffer.bet.length | 0;
+    const multiplier = betBuffer.bet[resultIndex];
+    const wager = betBuffer.wager;
+    const payout = multiplier * wager;
+    const profit = payout - wager;
+
+    // Update the fake balance after calculating the result
+    context.setFakeBalance(context.fakeBalance + payout);
+
+    return {
+      creator: context.platform.creator,
+      user: smartWallet.address,
+      rngSeed: 'fake_rng_seed',
+      clientSeed: betBuffer.clientSeed ?? '',
+      nonce: 0,
+      bet: betBuffer.bet,
+      resultIndex,
+      wager,
+      payout,
+      profit,
+      multiplier,
+      token: context.selectedPool.token,
+      bonusUsed: 0,
+      jackpotWin: 0,
+    };
+  };
 
   return {
-    play,
-    game: game.game,
-    result,
-  }
-}
+    isLoading,   // Loading state during game execution
+    error,       // Error state
+    playGame,    // Function to play the game
+    getResult,   // Function to get the game result
+  };
+};
