@@ -1,104 +1,56 @@
-import { signal } from '@preact/signals-react'
-import { PublicKey } from '@solana/web3.js'
-import React from 'react'
-
-// How many MS we should wait to aggregate pubkeys before fetching
-const DEBOUNCE_MS = 1
-
-const KNOWN_TOKEN_DATA = {
-  'So11111111111111111111111111111111111111112': {
-    name: 'Solana',
-    image: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'
-  },
-  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': {
-    image: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png'
-  }
-} as Record<string, Partial<TokenData>>
-
+import { useSDK } from "@thirdweb-dev/react";
+import React from "react";
+import useSWR from "swr";
 
 export interface TokenData {
-  // supply: bigint
-  mint: PublicKey
-  decimals: number
-  image?: string
-  name?: string
-  symbol?: string
-  usdPrice: number
+  mint: string;  // Ethereum contract address
+  name: string;
+  symbol: string;
+  image?: string;
+  decimals: number;
+  usdPrice: number;
 }
 
-const tokenMints = signal(new Set<string>)
-const tokenData = signal<Record<string, TokenData>>({})
+const KNOWN_TOKEN_DATA: Record<string, Partial<TokenData>> = {
+  '0x7F5c764cBc14f9669B88837ca1490cCa17c31607': {  // USDC on Optimism
+    name: 'USDC',
+    symbol: 'USDC',
+    image: 'https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png',
+    decimals: 6,
+    usdPrice: 1,
+  },
+  // Add other known tokens here
+};
 
-let fetchTimeout: any
+const fetchTokenMeta = async (sdk: any, tokenAddress: string) => {
+  // Fetch token metadata using Thirdweb SDK or fallback to known token data
+  const tokenMetadata = await sdk.getToken(tokenAddress).metadata.get();
+  return {
+    mint: tokenAddress,
+    name: tokenMetadata?.name || "Unknown",
+    symbol: tokenMetadata?.symbol || tokenAddress.substring(0, 3),
+    image: tokenMetadata?.image || KNOWN_TOKEN_DATA[tokenAddress]?.image,
+    decimals: tokenMetadata?.decimals || 18,
+    usdPrice: tokenMetadata?.price || 0,
+  };
+};
 
-const fetchTokenMeta = async (token: string) => {
-  tokenMints.value = new Set([...Array.from(tokenMints.value), token])
+/**
+ * Fetches token metadata for a given token address
+ */
+export function useTokenMeta(mint: string) {
+  const sdk = useSDK();
 
-  clearTimeout(fetchTimeout)
+  // Use SWR for caching and re-fetching token metadata
+  const { data } = useSWR(mint ? ['token-meta', mint] : null, () => fetchTokenMeta(sdk, mint));
 
-  fetchTimeout = setTimeout(async () => {
-    const unique = Array.from(tokenMints.value).filter((x) => !Object.keys(tokenData.value).includes(x))
-    if (!unique.length) {
-      return
-    }
-
-    const response = await fetch(`https://mainnet.helius-rpc.com/?api-key=${import.meta.env.VITE_HELIUS_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 'my-id',
-        method: 'getAssetBatch',
-        params: {
-          ids: unique
-        },
-      }),
-    })
-
-    const { result } = (await response.json()) as { result: any[] }
-
-    const tokens = result
-      .reduce((prev, x) => {
-        const info = (x as any).token_info
-        const data = {
-          mint: new PublicKey(x.id),
-          image: x.content?.links?.image,
-          symbol: x.content?.metadata.symbol ?? info.symbol,
-          decimals: info.decimals,
-          name: x.content?.metadata.name ?? info.symbol,
-          usdPrice: info.price_info?.price_per_token ?? 0,
-          ...KNOWN_TOKEN_DATA[x.id.toString()]
-        }
-        return {...prev, [x.id.toString()]: data}
-      }, {} as Record<string, TokenData> )
-
-    tokenData.value = { ...tokenData.value, ...tokens }
-    tokenMints.value = new Set
-  }, DEBOUNCE_MS)
-}
-
-export function useTokenMeta(mint: string | PublicKey) {
-  const get = useGetTokenMeta()
-
-  React.useEffect(() => {
-    fetchTokenMeta(mint.toString())
-  }, [mint])
-
-  return get(mint)
-}
-
-export function useGetTokenMeta() {
-  return (mint: string | PublicKey) => {
-    return tokenData.value[mint.toString()] ?? {
-      mint: new PublicKey(mint),
-      name: "Unknown",
-      symbol: mint.toString().substring(0, 3),
-      image: KNOWN_TOKEN_DATA[mint.toString()],
-      decimals: 9,
-      usdPrice: 0,
-      ...KNOWN_TOKEN_DATA[mint.toString()]
-    }
-  }
+  return data || {
+    mint,
+    name: "Unknown",
+    symbol: mint.substring(0, 3),
+    image: KNOWN_TOKEN_DATA[mint]?.image,
+    decimals: 18,
+    usdPrice: 0,
+    ...KNOWN_TOKEN_DATA[mint]
+  };
 }
