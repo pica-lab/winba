@@ -1,4 +1,3 @@
-```typescript
 import { ethers } from 'ethers';
 
 // This function generates a deterministic address using the pool seed and the token address.
