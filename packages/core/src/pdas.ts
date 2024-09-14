@@ -1,102 +1,75 @@
-import { NATIVE_MINT, getAssociatedTokenAddressSync } from '@solana/spl-token'
-import { PublicKey } from '@solana/web3.js'
-import {
-  GAMBA_STATE_SEED,
-  GAME_SEED,
-  PLAYER_SEED,
-  POOL_ATA_SEED,
-  POOL_BONUS_MINT_SEED,
-  POOL_BONUS_UNDERLYING_TA_SEED,
-  POOL_JACKPOT_SEED,
-  POOL_LP_MINT_SEED,
-  POOL_SEED,
-  PROGRAM_ID,
-} from './constants'
+```typescript
+import { ethers } from 'ethers';
 
-export const getPdaAddress = (...seeds: (Uint8Array | Buffer)[]) => {
-  const [address] = PublicKey.findProgramAddressSync(seeds, PROGRAM_ID)
-  return address
-}
+// This function generates a deterministic address using the pool seed and the token address.
+export const getPoolAddress = (tokenAddress: string, authority: string): string => {
+  const poolSeed = ethers.utils.solidityKeccak256(
+    ['string', 'address', 'address'],
+    ['POOL', tokenAddress, authority]
+  );
+  return ethers.utils.getAddress(poolSeed);
+};
 
-export const getPoolAddress = (underlyingMint: PublicKey, authority = new PublicKey('11111111111111111111111111111111')) =>
-  getPdaAddress(
-    Buffer.from(POOL_SEED),
-    underlyingMint.toBytes(),
-    authority.toBytes(),
-  )
+// This function generates the bonus mint address for the pool using the pool's address.
+export const getPoolBonusAddress = (poolAddress: string): string => {
+  const bonusSeed = ethers.utils.solidityKeccak256(
+    ['string', 'address'],
+    ['POOL_BONUS_MINT', poolAddress]
+  );
+  return ethers.utils.getAddress(bonusSeed);
+};
 
-export const getGambaStateAddress = () => getPdaAddress(
-  Buffer.from(GAMBA_STATE_SEED),
-)
+// This function generates the LP mint address for the pool using the pool's address.
+export const getPoolLpAddress = (poolAddress: string): string => {
+  const lpMintSeed = ethers.utils.solidityKeccak256(
+    ['string', 'address'],
+    ['POOL_LP_MINT', poolAddress]
+  );
+  return ethers.utils.getAddress(lpMintSeed);
+};
 
-export const getPlayerAddress = (owner: PublicKey) => getPdaAddress(
-  Buffer.from(PLAYER_SEED),
-  owner.toBytes(),
-)
+// This function generates the pool's underlying token account address using the pool's address.
+export const getPoolUnderlyingTokenAccountAddress = (poolAddress: string): string => {
+  const underlyingTokenAccountSeed = ethers.utils.solidityKeccak256(
+    ['string', 'address'],
+    ['POOL_ATA', poolAddress]
+  );
+  return ethers.utils.getAddress(underlyingTokenAccountSeed);
+};
 
-export const getGameAddress = (owner: PublicKey) => getPdaAddress(
-  Buffer.from(GAME_SEED),
-  owner.toBytes(),
-)
+// This function generates the pool's jackpot token account address using the pool's address.
+export const getPoolJackpotTokenAccount = (poolAddress: string): string => {
+  const jackpotTokenAccountSeed = ethers.utils.solidityKeccak256(
+    ['string', 'address'],
+    ['POOL_JACKPOT', poolAddress]
+  );
+  return ethers.utils.getAddress(jackpotTokenAccountSeed);
+};
 
-export const getPoolLpAddress = (pool: PublicKey) => getPdaAddress(
-  Buffer.from(POOL_LP_MINT_SEED),
-  pool.toBytes(),
-)
+// This function generates the winba state address.
+export const getWinbaStateAddress = (): string => {
+  const winbaStateSeed = ethers.utils.solidityKeccak256(
+    ['string'],
+    ['WINBA_STATE']
+  );
+  return ethers.utils.getAddress(winbaStateSeed);
+};
 
-export const getPoolBonusAddress = (pool: PublicKey) => getPdaAddress(
-  Buffer.from(POOL_BONUS_MINT_SEED),
-  pool.toBytes(),
-)
+// This function generates the player address for a specific user.
+export const getPlayerAddress = (userAddress: string): string => {
+  const playerSeed = ethers.utils.solidityKeccak256(
+    ['string', 'address'],
+    ['PLAYER', userAddress]
+  );
+  return ethers.utils.getAddress(playerSeed);
+};
 
-export const getPoolUnderlyingTokenAccountAddress = (pool: PublicKey) => getPdaAddress(
-  Buffer.from(POOL_ATA_SEED),
-  pool.toBytes(),
-)
-
-export const getPoolJackpotTokenAccountAddress = (pool: PublicKey) => getPdaAddress(
-  Buffer.from(POOL_JACKPOT_SEED),
-  pool.toBytes(),
-)
-
-export const getPoolBonusUnderlyingTokenAccountAddress = (pool: PublicKey) => getPdaAddress(
-  Buffer.from(POOL_BONUS_UNDERLYING_TA_SEED),
-  pool.toBytes(),
-)
-
-
-export const getUserUnderlyingAta = (user: PublicKey, underlyingTokenMint: PublicKey) =>
-  getAssociatedTokenAddressSync(
-    underlyingTokenMint,
-    user,
-  )
-
-export const getPlayerUnderlyingAta = (user: PublicKey, underlyingTokenMint: PublicKey) =>
-  getAssociatedTokenAddressSync(
-    underlyingTokenMint,
-    getPlayerAddress(user),
-    true,
-  )
-
-export const getUserBonusAtaForPool = (user: PublicKey, pool: PublicKey) =>
-  getAssociatedTokenAddressSync(
-    getPoolBonusAddress(pool),
-    user,
-  )
-
-export const getUserLpAtaForPool = (user: PublicKey, pool: PublicKey) =>
-  getAssociatedTokenAddressSync(
-    getPoolLpAddress(pool),
-    user,
-  )
-
-export const getPlayerBonusAtaForPool = (user: PublicKey, pool: PublicKey) =>
-  getAssociatedTokenAddressSync(
-    getPoolBonusAddress(pool),
-    getPlayerAddress(user),
-    true,
-  )
-
-export const getUserWsolAccount = (user: PublicKey) => {
-  return getAssociatedTokenAddressSync(NATIVE_MINT, user, true)
-}
+// This function generates the game address for a specific user.
+export const getGameAddress = (userAddress: string): string => {
+  const gameSeed = ethers.utils.solidityKeccak256(
+    ['string', 'address'],
+    ['GAME', userAddress]
+  );
+  return ethers.utils.getAddress(gameSeed);
+};
+```
