@@ -1,46 +1,43 @@
-import "@radix-ui/themes/styles.css"
-import "@solana/wallet-adapter-react-ui/styles.css"
-import "./styles.css"
+import "@radix-ui/themes/styles.css";
+import "./styles.css";
 
-import * as Toast from "@radix-ui/react-toast"
-import { Theme } from "@radix-ui/themes"
-import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react"
-import { WalletModalProvider } from "@solana/wallet-adapter-react-ui"
-import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets"
-import { GambaProvider } from "gamba-react-v2"
-import React from "react"
-import ReactDOM from "react-dom/client"
-import { BrowserRouter } from "react-router-dom"
-import { App } from "./App"
+import * as Toast from "@radix-ui/react-toast";
+import { Theme } from "@radix-ui/themes";
+import { ThirdwebProvider, smartWallet } from "@thirdweb-dev/react";
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import { App } from "./App";
+import { ChainId } from "@thirdweb-dev/sdk";
 
-const root = ReactDOM.createRoot(document.getElementById("root")!)
+// Initialize Thirdweb Smart Wallet
+const root = ReactDOM.createRoot(document.getElementById("root")!);
 
 function Root() {
-  const wallets = React.useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-    ],
-    [],
-  )
+  const desiredChainId = ChainId.Optimism;
 
   return (
     <Theme accentColor="iris" radius="large" panelBackground="translucent">
       <BrowserRouter>
-        <ConnectionProvider endpoint={import.meta.env.VITE_RPC_ENDPOINT} config={{ commitment: "processed" }}>
-          <WalletProvider autoConnect wallets={wallets}>
-            <WalletModalProvider>
-              <GambaProvider>
-                <Toast.Provider swipeDirection="right">
-                  <App />
-                </Toast.Provider>
-              </GambaProvider>
-            </WalletModalProvider>
-          </WalletProvider>
-        </ConnectionProvider>
+        <ThirdwebProvider
+          desiredChainId={desiredChainId}
+          clientId={process.env.THIRDWEB_CLIENT_ID}
+          sdkOptions={{
+            gasless: true,
+            wallet: new smartWallet({
+              chainId: desiredChainId,
+              factoryAddress: process.env.SMART_WALLET_FACTORY,
+              owner: process.env.OWNER_WALLET_ADDRESS,
+            }),
+          }}
+        >
+          <Toast.Provider swipeDirection="right">
+            <App />
+          </Toast.Provider>
+        </ThirdwebProvider>
       </BrowserRouter>
     </Theme>
-  )
+  );
 }
 
-root.render(<Root />)
+root.render(<Root />);
