@@ -1,5 +1,5 @@
 {
-  "name": "gamba-core-v2",
+  "name": "winba-core-v1",
   "private": false,
   "version": "0.4.0",
   "main": "dist/index.js",
@@ -19,9 +19,9 @@
     "clean": "rm -rf .turbo && rm -rf node_modules && rm -rf dist"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.27.0",
-    "@solana/spl-token": "^0.3.8",
-    "@solana/web3.js": "^1.93.0"
+    "ethers": "^5.7.0",
+    "@thirdweb-dev/react": "^3.0.0",
+    "typescript": "^5.2.2"
   },
   "devDependencies": {
     "eslint": "^8.48.0",
@@ -29,8 +29,7 @@
     "typescript": "^5.2.2"
   },
   "peerDependencies": {
-    "@coral-xyz/anchor": "^0.27.0",
-    "@solana/web3.js": "^1.93.0"
+    "@thirdweb-dev/react": "^3.0.0"
   },
   "keywords": [],
   "author": "",
