@@ -8,95 +8,64 @@ import { DetailCard, TokenAvatar } from "@/components";
 import { truncateString } from "@/components/AccountItem";
 import { Details } from "@/components/Details";
 import { SkeletonCardList, SkeletonFallback } from "@/components/Skeleton";
-import { usePlatformMeta, useTokenMeta } from "@/hooks";
-import { useSDK, useAddress } from "@thirdweb-dev/react"; // Added for Thirdweb integration
-import styled from "styled-components";
-import { TopPlayers, TotalVolume } from "../Dashboard/Dashboard";
+import { useTokenMeta } from "@/hooks";
+import { useSDK } from "@thirdweb-dev/react"; // Thirdweb SDK for Optimism
 
-const OnlineIndicator = styled.div`
-  width: 8px;
-  height: 8px;
-  background: #22ff63;
-  border-radius: 50%;
-  display: inline-block;
-  margin-right: 0.5em;
-  vertical-align: middle;
-  @keyframes online-indicator-pulsing {
-    0%, 25%, 75%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
-  animation: online-indicator-pulsing infinite 1s;
-`;
-
-export function DetailCards({ creator, startTime = 0 }: { creator?: string, startTime?: number }) {
-  const { data, isLoading } = useApi<StatsResponse>('/stats', { creator: creator?.toString(), startTime });
-  
+function PlatformHeader({ creator }: { creator: string }) {
+  const meta = useTokenMeta(creator);
   return (
-    <Flex gap="2" wrap="wrap">
-      <DetailCard title="Volume">
-        <SkeletonFallback loading={isLoading}>
-          ${data?.usd_volume?.toLocaleString()}
-        </SkeletonFallback>
-      </DetailCard>
-      <DetailCard title="Estimated Fees">
-        <SkeletonFallback loading={isLoading}>
-          ${data?.revenue_usd?.toLocaleString()}
-        </SkeletonFallback>
-      </DetailCard>
-      <DetailCard title="Plays">
-        <SkeletonFallback loading={isLoading}>
-          {data?.plays?.toLocaleString()}
-        </SkeletonFallback>
-      </DetailCard>
-      <DetailCard title="Players">
-        <SkeletonFallback loading={isLoading}>
-          {data?.players?.toLocaleString()}
-        </SkeletonFallback>
-      </DetailCard>
-      {data && data.active_players > 0 && (
-        <DetailCard title="Active players">
-          <OnlineIndicator />
-          <SkeletonFallback loading={isLoading}>
-            {data?.active_players?.toLocaleString()}
-          </SkeletonFallback>
-        </DetailCard>
-      )}
+    <Flex gap="4" align="center">
+      <Avatar size="2" src={meta.image ?? ""} fallback="" />
+      {meta.name ?? truncateString(creator)}
     </Flex>
   );
 }
 
-function LinkWarningDialog(props: { url: string }) {
-  return (
-    <Dialog.Root>
-      {/* Dialog content */}
-    </Dialog.Root>
-  );
-}
-
-export default function PlatformView() {
+export function PlatformView() {
   const { address } = useParams<{ address: string }>();
-  const sdk = useSDK(); // Thirdweb SDK for contract interactions
-  const walletAddress = useAddress(); // Connected wallet address
-  
-  const platformMeta = usePlatformMeta(address); // Fetch platform metadata
-  const tokenMeta = useTokenMeta(platformMeta?.tokenMint); // Fetch token metadata
+  const { data: tokens = [], isLoading } = useApi<PlatformTokenResponse>("/tokens", { creator: address });
+  const sdk = useSDK(); // Access Thirdweb SDK
 
   return (
     <Container>
-      <Grid gap="4">
-        <Flex direction="column" gap="4">
-          <DetailCards creator={address} />
-          <Card>
-            <Flex justify="between">
-              <Text color="gray">Platform Overview</Text>
-              <Link asChild>
-                <NavLink to={`/platform/${address}`}>View Details</NavLink>
-              </Link>
-            </Flex>
-          </Card>
-          <RecentPlays creator={address!} />
+      <Flex direction="column" gap="4">
+        <Flex justify={{ sm: "between" }} align={{ sm: "end" }} py="4" direction={{ initial: "column", sm: "row" }} gap="4">
+          <PlatformHeader creator={address!} />
         </Flex>
-      </Grid>
+        <DetailCards creator={address} />
+        <Grid gap="4" columns={{ initial: "1", sm: "2" }}>
+          <Flex gap="4" direction="column">
+            <TotalVolume creator={address!} />
+            <PlatformDetails creator={address!} />
+          </Flex>
+          <Flex gap="4" direction="column">
+            <Card>
+              <Flex gap="2" direction="column">
+                <Text color="gray">Volume by token</Text>
+                <Flex direction="column" gap="2">
+                  {isLoading && !tokens.length && <SkeletonCardList cards={3} />}
+                  {tokens.map((token, i) => (
+                    <TokenVolume key={i} token={token} />
+                  ))}
+                </Flex>
+              </Flex>
+            </Card>
+            <Card>
+              <Flex gap="2" direction="column">
+                <Flex justify="between">
+                  <Text color="gray">7d Leaderboard</Text>
+                  <Link asChild>
+                    <NavLink to={`/leaderboard?creator=${address}`}>View all</NavLink>
+                  </Link>
+                </Flex>
+                <TopPlayers creator={address!} />
+              </Flex>
+            </Card>
+          </Flex>
+        </Grid>
+        <Text color="gray">Recent plays</Text>
+        <RecentPlays creator={address!} />
+      </Flex>
     </Container>
   );
 }
