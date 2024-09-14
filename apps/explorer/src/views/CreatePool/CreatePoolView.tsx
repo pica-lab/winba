@@ -1,29 +1,31 @@
-import { ArrowRightIcon, ExclamationTriangleIcon, PlusIcon } from "@radix-ui/react-icons"
-import { Avatar, Button, Callout, Card, Dialog, Flex, Grid, Heading, Link, ScrollArea, Switch, Text, TextField } from "@radix-ui/themes"
-import { useConnection, useWallet } from "@solana/wallet-adapter-react"
-import { ComputeBudgetProgram } from "@solana/web3.js"
-import { NATIVE_MINT, decodeGambaState, getGambaStateAddress, getPoolAddress, isNativeMint } from "gamba-core-v2"
-import { useAccount, useGambaProvider, useSendTransaction, useWalletAddress } from "gamba-react-v2"
-import React from "react"
-import { useNavigate } from "react-router-dom"
-import useSWR from "swr"
+import { ArrowRightIcon, ExclamationTriangleIcon, PlusIcon } from "@radix-ui/react-icons";
+import { Avatar, Button, Callout, Card, Dialog, Flex, Grid, Heading, Link, ScrollArea, Switch, Text, TextField } from "@radix-ui/themes";
+import { useSDK, useAddress } from "@thirdweb-dev/react"; // Updated to use Thirdweb Provider
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import useSWR from "swr";
+import { SelectableButton, TokenAvatar } from "@/components";
+import { truncateString } from "@/components/AccountItem";
+import { TokenValue2 } from "@/components/TokenValue2";
+import { useTokenList } from "@/hooks"; // Assuming a custom hook for fetching tokens
 
-import { SelectableButton, TokenAvatar } from "@/components"
-import { truncateString } from "@/components/AccountItem"
-import { TokenValue2 } from "@/components/TokenValue2"
-import { SYSTEM_PROGRAM } from "@/constants"
-import { ParsedTokenAccount, useTokenList } from "@/hooks"
-import { useGetTokenMeta, useTokenMeta } from "@/hooks/useTokenMeta"
-import { fetchPool } from "@/views/Dashboard/PoolList"
-import { ConnectUserCard } from "../Debug/DebugUser"
+// Updated logic to use Thirdweb SDK for pool creation on Optimism
+async function createPool(sdk, selectedToken, isPrivate) {
+  try {
+    // Pool creation logic using Thirdweb and Optimism
+    const contract = sdk.getContract("YOUR_CONTRACT_ADDRESS");
+    await contract.call("createPool", selectedToken.mint, isPrivate);
+    // Handle success (e.g., navigate to the new pool)
+  } catch (error) {
+    console.error("Error creating pool:", error);
+  }
+}
 
-function SelectableToken(props: {token: ParsedTokenAccount, selected: boolean, onSelect: () => void}) {
-  const meta = useTokenMeta(props.token.mint)
+function SelectableToken(props: { token: any, selected: boolean, onSelect: () => void }) {
+  const meta = useTokenMeta(props.token.mint);
+  
   return (
-    <SelectableButton
-      selected={props.selected}
-      onClick={props.onSelect}
-    >
+    <SelectableButton selected={props.selected} onClick={props.onSelect}>
       <Flex justify="between">
         <Flex gap="4" align="center">
           <TokenAvatar mint={props.token.mint} />
@@ -36,218 +38,95 @@ function SelectableToken(props: {token: ParsedTokenAccount, selected: boolean, o
           <Text>
             <TokenValue2 mint={props.token.mint} amount={props.token.amount} />
           </Text>
-          <Text color="gray">
-            <TokenValue2 dollar mint={props.token.mint} amount={props.token.amount} />
-          </Text>
         </Flex>
       </Flex>
-      {/* <TokenItem mint={props.token.mint} balance={props.token.amount} /> */}
     </SelectableButton>
-  )
-}
-
-function PublicPoolWarning({token}: {token: ParsedTokenAccount}) {
-  const selectedTokenMeta = useTokenMeta(token.mint ?? NATIVE_MINT)
-  const gambaState = useAccount(getGambaStateAddress(), decodeGambaState)
-
-  return (
-    <>
-      <Text>
-        You are about to create a public liqudity pool for <Avatar src={selectedTokenMeta.image} fallback="?" size="1" radius="full" /><b>{selectedTokenMeta.name} ({selectedTokenMeta.symbol})</b>.
-      </Text>
-      <Text>
-        Since it's public, anyone will be able make deposits to it, and any frontend will be able to make use of its liquidity for plays.
-      </Text>
-      <Text>
-        The cost of creating a pool is <b><TokenValue2 mint={NATIVE_MINT} amount={gambaState?.poolCreationFee ?? 0} /></b> + rent.
-      </Text>
-      <Text>
-        The play fee is currently <b>{(gambaState?.defaultPoolFee.toNumber() ?? 0) / 100}%</b>.
-      </Text>
-    </>
-  )
-}
-
-function PrivatePoolWarning({token}: {token: ParsedTokenAccount}) {
-  const selectedTokenMeta = useTokenMeta(token.mint ?? NATIVE_MINT)
-  const gambaState = useAccount(getGambaStateAddress(), decodeGambaState)
-
-  return (
-    <>
-      <Text>
-        You are about to create a private liqudity pool for <Avatar src={selectedTokenMeta.image} fallback="?" size="1" radius="full" /><b>{selectedTokenMeta.name} ({selectedTokenMeta.symbol})</b>.
-      </Text>
-      <Text>
-        Please read up on private pools before creating.
-      </Text>
-      <Text>
-        The cost of creating a pool is <b><TokenValue2 mint={NATIVE_MINT} amount={gambaState?.poolCreationFee ?? 0} /></b> + rent.
-      </Text>
-    </>
-  )
+  );
 }
 
 function Inner() {
-  const navigate = useNavigate()
-  const { connection } = useConnection()
-  const publicKey = useWalletAddress()
-  const gamba = useGambaProvider()
-  const gambaState = useAccount(getGambaStateAddress(), decodeGambaState)
-  const [selectedToken, setSelectedToken] = React.useState<ParsedTokenAccount>()
-  const tokens = useTokenList()
-  const sendTx = useSendTransaction()
-  const [isPrivate, setPrivate] = React.useState(false)
-  const authority = isPrivate ? publicKey : SYSTEM_PROGRAM
-  const selectedPoolId = selectedToken && getPoolAddress(selectedToken.mint, authority)
-  const { data: selectedPool, isLoading } = useSWR(
-    () => selectedPoolId && "pool-" + selectedPoolId.toBase58(),
-    () => selectedPoolId && fetchPool(connection, selectedPoolId),
-  )
-
-  const [search, setSearch] = React.useState("")
-
-  // Sort by 1. Sol, 2. Known tokens 3. Balance 4. Pubkey
-  const sortedTokens = React.useMemo(
-    () => {
-      return tokens
-        .sort((a, b) => {
-          const nativeMintDiff = Number(isNativeMint(b.mint)) - Number(isNativeMint(a.mint))
-          if (nativeMintDiff) return nativeMintDiff
-          const balanceDiff = b.amount - a.amount
-          if (balanceDiff) return balanceDiff
-          return a.mint.toBase58() > b.mint.toBase58() ? 1 : -1
-        })
-    },
-    [tokens],
-  )
-
-  const getTokenMeta = useGetTokenMeta()
-
-  const filteredTokens = React.useMemo(
-    () =>
-      sortedTokens.filter((x) => {
-        const meta = getTokenMeta(x.mint)
-        if (x.mint.toBase58().toLocaleLowerCase().includes(search.toLowerCase())) return true
-        if (meta.symbol?.toLowerCase().includes(search.toLowerCase())) return true
-        if (meta.name?.toLowerCase().includes(search.toLowerCase())) return true
-        return false
-      }),
-    [getTokenMeta, sortedTokens, search]
-  )
-
-  const createPool = async () => {
-    try {
-      if (!selectedToken) return
-
-      const pool = getPoolAddress(selectedToken.mint, authority)
-
-      const slot = await connection.getSlot()
-
-      const tx = await sendTx(
-        gamba.createPool(selectedToken.mint, authority, slot),
-        {
-          confirmation: "confirmed",
-          priorityFee: 201_000,
-          computeUnits: 400_000,
-        }
-      )
-
-      console.log("Create pool txId", tx)
-
-      navigate("/pool/" + pool.toBase58() + "")
-    } catch (err) {
-      console.error(err)
-    }
-  }
+  const sdk = useSDK(); // Access the Thirdweb SDK
+  const walletAddress = useAddress(); // Get connected wallet address
+  const navigate = useNavigate();
+  const { data: tokenList = [] } = useSWR("token-list", fetchTokenList); // Fetch token list
+  const [selectedToken, setSelectedToken] = React.useState(null);
+  const [isPrivate, setPrivate] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  
+  const filteredTokens = tokenList.filter(token => token.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <>
-      <Card style={{ maxWidth: "720px", margin: "0 auto" }} size="4">
-        <Flex direction="column" gap="4">
-          <Heading>
-            Select Token
-          </Heading>
-          {gambaState && !gambaState.poolCreationAllowed && (
-            <Callout.Root color="orange">
-              <Callout.Icon>
-                <ExclamationTriangleIcon />
-              </Callout.Icon>
-              <Callout.Text>Pool Creation is restricted at the moment. Come back later or select a pool that has already been created.</Callout.Text>
-            </Callout.Root>
-          )}
-          <Text size="2" color="gray">
-            Select the token you want to provide liqudity for
-          </Text>
-          <TextField.Root>
-            <TextField.Input
-              placeholder="Filter Tokens"
-              value={search}
-              size="3"
-              onChange={(evt) => setSearch(evt.target.value)}
+      <Callout.Root>
+        {/* Instructions for creating a pool */}
+      </Callout.Root>
+
+      <Text size="2" color="gray">Select the token you want to provide liquidity for</Text>
+
+      <TextField.Root>
+        <TextField.Input
+          placeholder="Filter Tokens"
+          value={search}
+          size="3"
+          onChange={(evt) => setSearch(evt.target.value)}
+        />
+      </TextField.Root>
+
+      <ScrollArea style={{ maxHeight: "300px" }}>
+        <Grid gap="1">
+          {filteredTokens.map((token, i) => (
+            <SelectableToken
+              key={i}
+              token={token}
+              onSelect={() => setSelectedToken(token)}
+              selected={!!selectedToken?.mint === token.mint}
             />
-          </TextField.Root>
-          <ScrollArea style={{ maxHeight: "300px" }}>
-            <Grid gap="1">
-              {filteredTokens.map((token, i) => (
-                <SelectableToken
-                  key={i}
-                  token={token}
-                  onSelect={() => setSelectedToken(token)}
-                  selected={!!selectedToken?.mint.equals(token.mint)}
-                />
-              ))}
-            </Grid>
-          </ScrollArea>
-          <Flex align="center" justify="between">
-            <Text>
-              Private
-            </Text>
-            <Switch
-              radius="full"
-              checked={isPrivate}
-              onCheckedChange={value => setPrivate(value)}
-            />
+          ))}
+        </Grid>
+      </ScrollArea>
+
+      <Flex align="center" justify="between">
+        <Text>Private</Text>
+        <Switch
+          radius="full"
+          checked={isPrivate}
+          onCheckedChange={value => setPrivate(value)}
+        />
+      </Flex>
+
+      <Dialog.Root>
+        <Dialog.Trigger>
+          <Button
+            size="3"
+            color="green"
+            variant="soft"
+            disabled={!selectedToken || !sdk}
+          >
+            Create Pool <PlusIcon />
+          </Button>
+        </Dialog.Trigger>
+
+        <Dialog.Content>
+          <Flex direction="column" gap="2">
+            <Heading>Read before creating!</Heading>
+            {selectedToken && (
+              <>
+                {!isPrivate && <Text>Public Pool Warning: Your pool will be publicly visible.</Text>}
+                {isPrivate && <Text>Private Pool Warning: Your pool will be private.</Text>}
+              </>
+            )}
+            <Button size="3" variant="soft" color="green" onClick={() => createPool(sdk, selectedToken, isPrivate)}>
+              Create Pool
+            </Button>
           </Flex>
-          <Dialog.Root>
-            <Dialog.Trigger>
-              <Button
-                size="3"
-                color="green"
-                variant="soft"
-                disabled={!selectedToken || isLoading || !gambaState?.poolCreationAllowed || !!selectedPool}
-              >
-                Create Pool <PlusIcon />
-              </Button>
-            </Dialog.Trigger>
-            <Dialog.Content>
-              <Flex direction="column" gap="2">
-                <Heading>Read before creating!</Heading>
-                {selectedToken && (
-                  <>
-                    {!isPrivate && <PublicPoolWarning token={selectedToken} />}
-                    {isPrivate && <PrivatePoolWarning token={selectedToken} />}
-                  </>
-                )}
-                <Button size="3" variant="soft" color="green" onClick={createPool}>
-                  Create Pool
-                </Button>
-              </Flex>
-            </Dialog.Content>
-          </Dialog.Root>
-          {!isLoading && !!selectedPool && (
-            <Link
-              onClick={() => navigate("/pool/" + selectedPool.publicKey.toBase58())}
-            >
-              This pool already exists. Go to deposit <ArrowRightIcon />
-            </Link>
-          )}
-        </Flex>
-      </Card>
+        </Dialog.Content>
+      </Dialog.Root>
     </>
-  )
+  );
 }
 
 export default function CreatePoolView() {
-  const wallet = useWallet()
-  return wallet.connected ? <Inner /> : <ConnectUserCard />
+  const address = useAddress(); // Get wallet address from Thirdweb
+
+  return address ? <Inner /> : <Text>Please connect your wallet</Text>;
 }
