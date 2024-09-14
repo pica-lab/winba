@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
 import { useSmartWallet } from "@thirdweb-dev/react";
+import { UiPoolState } from "winba-core-v2"; // Assuming UiPoolState is in winba-core-v2
+import { WinbaPlatformContext } from "../WinbaPlatformProvider";
 
 interface PoolInfo {
   poolAddress: string;
