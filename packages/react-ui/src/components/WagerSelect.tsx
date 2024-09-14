@@ -1,4 +1,4 @@
-import { useGamba } from 'gamba-react-v2'
+import { useWinba } from 'winba-react'
 import React from 'react'
 import { Select } from './Select'
 import { TokenValue } from './TokenValue'
@@ -14,7 +14,7 @@ export interface WagerSelectProps {
  * @deprecated Use WagerInput with "options" prop
  */
 export function WagerSelect(props: WagerSelectProps) {
-  const gamba = useGamba()
+  const gamba = useWinba()
   return (
     <Select
       className={props.className}
