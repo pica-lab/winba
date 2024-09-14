@@ -1,45 +1,22 @@
-import { PublicKey } from '@solana/web3.js'
-import React from 'react'
-import { GambaPlatformContext } from '../GambaPlatformProvider'
-import { useTokenMeta } from '../hooks'
+import React from "react";
+import { ethers } from "ethers";
 
-export interface TokenValueProps {
-  mint?: PublicKey
-  amount: number
-  suffix?: string
-  exact?: boolean
+interface TokenValueProps {
+  value: ethers.BigNumber;  // Token value as a BigNumber
+  decimals?: number;        // Token decimals (default is 18 for most ERC-20 tokens)
+  symbol?: string;          // Token symbol (optional)
 }
 
-export function TokenValue(props: TokenValueProps) {
-  const context = React.useContext(GambaPlatformContext)
-  const mint = props.mint ?? context?.selectedPool.token
-  if (!mint) {
-    throw new Error('"mint" prop is required when not using GambaPlatformProvider')
-  }
-  const token = useTokenMeta(mint)
-  const suffix = props.suffix ?? token?.symbol ?? '?'
-  const tokenAmount = props.amount / (10 ** token.decimals)
-
-  const displayedAmount = (
-    () => {
-      if (!props.exact) {
-        if (tokenAmount >= 1e9) {
-          return (tokenAmount / 1e9).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'B'
-        }
-        if (tokenAmount >= 1e6) {
-          return (tokenAmount / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'M'
-        }
-        if (tokenAmount > 1000) {
-          return (tokenAmount / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) + 'K'
-        }
-      }
-      return tokenAmount.toLocaleString(undefined, { maximumFractionDigits: Math.floor(tokenAmount) > 100 ? 1 : 4 })
-    }
-  )()
+// Component to display a formatted token value
+const TokenValue: React.FC<TokenValueProps> = ({ value, decimals = 18, symbol = "" }) => {
+  // Format the BigNumber value to a readable string with proper decimals
+  const formattedValue = ethers.utils.formatUnits(value, decimals);
 
   return (
-    <>
-      {displayedAmount} {suffix}
-    </>
-  )
-}
+    <span>
+      {formattedValue} {symbol}
+    </span>
+  );
+};
+
+export default TokenValue;
