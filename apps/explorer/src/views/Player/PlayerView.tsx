@@ -1,17 +1,18 @@
-import RecentPlays from "@/RecentPlays"
-import { PlayerResponse, useApi } from "@/api"
-import { DetailCard } from "@/components"
-import { PlayerAccountItem } from "@/components/AccountItem"
-import { Details } from "@/components/Details"
-import { SkeletonFallback } from "@/components/Skeleton"
-import { SolanaAddress } from "@/components/SolanaAddress"
-import { Flex, Text } from "@radix-ui/themes"
-import React from "react"
-import { useParams } from "react-router-dom"
+import RecentPlays from "@/RecentPlays";
+import { PlayerResponse, useApi } from "@/api";
+import { DetailCard } from "@/components";
+import { PlayerAccountItem } from "@/components/AccountItem";
+import { Details } from "@/components/Details";
+import { SkeletonFallback } from "@/components/Skeleton";
+import { Flex, Text } from "@radix-ui/themes";
+import React from "react";
+import { useParams } from "react-router-dom";
+import { useSDK } from "@thirdweb-dev/react"; // Thirdweb SDK for handling player details
 
 function PlayerStats() {
-  const { address } = useParams<{address: string}>()
-  const { data, isLoading } = useApi<PlayerResponse>("/player", {user: address!})
+  const { address } = useParams<{ address: string }>();
+  const { data, isLoading } = useApi<PlayerResponse>("/player", { user: address });
+
   return (
     <Flex gap="2" wrap="wrap">
       <DetailCard title="Volume">
@@ -35,28 +36,22 @@ function PlayerStats() {
         </SkeletonFallback>
       </DetailCard>
     </Flex>
-  )
+  );
 }
 
 export function PlayerView() {
-  const { address } = useParams<{address: string}>()
-  const { data } = useApi<PlayerResponse>("/player", {user: address!})
+  const { address } = useParams<{ address: string }>();
+  const { data } = useApi<PlayerResponse>("/player", { user: address });
 
   return (
     <Flex direction="column" gap="4">
       <PlayerStats />
       <Details
-        title={
-          <PlayerAccountItem address={address!} />
-        }
-        rows={[
-          ["Address", <SolanaAddress address={address!} />],
-        ]}
+        title={<PlayerAccountItem address={address!} />}
+        rows={[["Address", <Text>{address}</Text>]]}
       />
-      <Text color="gray">
-        Recent Plays
-      </Text>
+      <Text color="gray">Recent Plays</Text>
       <RecentPlays user={address!} />
     </Flex>
-  )
+  );
 }
