@@ -1,180 +1,47 @@
-import { AnchorError } from '@coral-xyz/anchor'
-import { useConnection, useWallet } from '@solana/wallet-adapter-react'
-import { AddressLookupTableAccount, Commitment, ComputeBudgetProgram, PublicKey, TransactionConfirmationStrategy, TransactionInstruction, TransactionMessage, VersionedTransaction } from '@solana/web3.js'
-import React from 'react'
-import { PubSub } from '../PubSub'
-import { SendTransactionContext } from '../SendTransactionContext'
-import { useTransactionStore } from './useTransactionStore'
+import { useState } from "react";
+import { ethers } from "ethers";
+import { useSmartWallet } from "@thirdweb-dev/react";
 
-const transactionEventEmitter = new PubSub<[error: Error]>
+// Hook to send a transaction using the connected smart wallet
+export const useSendTransaction = () => {
+  const { smartWallet } = useSmartWallet(); // Get the connected smart wallet
+  const [isSending, setIsSending] = useState<boolean>(false); // Loading state for sending transaction
+  const [error, setError] = useState<string | null>(null); // Error state
 
-export const throwTransactionError = (error: any) => {
-  transactionEventEmitter.emit(error)
-  return error
-}
-
-export function useTransactionError(callback: (error: any) => void) {
-  React.useLayoutEffect(
-    () => transactionEventEmitter.subscribe(callback),
-    [callback],
-  )
-}
-
-export interface SendTransactionOptions {
-  confirmation?: Commitment
-  lookupTable?: PublicKey[]
-  priorityFee?: number
-  computeUnitLimitMargin?: number
-  /** Skip simulation and manually set compute units */
-  computeUnits?: number
-  label?: string
-}
-
-const getErrorLogs = (error: unknown) => {
-  if (typeof error === 'object' && !!error && 'logs' in error && Array.isArray(error.logs)) return error.logs as string[]
-  return null
-}
-
-export function useSendTransaction() {
-  const store = useTransactionStore()
-  const { connection } = useConnection()
-  const wallet = useWallet()
-  const context = React.useContext(SendTransactionContext)
-
-  return async (
-    instructions: TransactionInstruction | Promise<TransactionInstruction> |
-    (TransactionInstruction | Promise<TransactionInstruction>)[],
-    opts?: SendTransactionOptions,
-  ) => {
-    try {
-      store.set({ state: 'simulating', label: opts?.label })
-
-      if (!wallet.publicKey || !wallet.signTransaction) {
-        throw new Error('Wallet Not Connected')
-      }
-
-      const payer = wallet.publicKey
-
-      if (!Array.isArray(instructions)) {
-        instructions = [
-          instructions,
-        ]
-      }
-
-      const priorityFee = opts?.priorityFee ?? context.priorityFee
-
-      const resolvedInstructions = await Promise.all(instructions)
-
-      const lookupTableAddresses = opts?.lookupTable ?? []
-
-      // Fetch lookup tables
-      const lookupTables = await Promise.all(
-        lookupTableAddresses
-          .map(async (x) => {
-            const response = await connection.getAddressLookupTable(x)
-            return response?.value
-          })
-          .filter((x) => !!x),
-      ) as AddressLookupTableAccount[]
-
-      const createTx = async (units: number, recentBlockhash = PublicKey.default.toString()) => {
-        const message = new TransactionMessage({
-          payerKey: payer,
-          recentBlockhash,
-          instructions: [
-            ...(priorityFee ? [ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityFee })] : []),
-            ComputeBudgetProgram.setComputeUnitLimit({ units }),
-            ...resolvedInstructions,
-          ],
-        }).compileToV0Message(lookupTables)
-        return new VersionedTransaction(message)
-      }
-
-      const computeUnitLimit = await (
-        async () => {
-          if (opts?.computeUnits) {
-            return opts.computeUnits
-          }
-          // If computeUnits has not been set manually, simulate a transaction
-          const simulatedTx = await createTx(context.simulationUnits)
-          const simulation = await connection.simulateTransaction(simulatedTx, { replaceRecentBlockhash: true, sigVerify: false })
-          if (simulation.value.err) {
-            throw simulation.value.err
-          }
-          if (!simulation.value.unitsConsumed) {
-            throw new Error('Simulation did not consume any units.')
-          }
-          return Math.floor(simulation.value.unitsConsumed * (opts?.computeUnitLimitMargin ?? 1))
-        }
-      )()
-
-      // Create and sign the actual transaction
-      const transaction = await createTx(computeUnitLimit, (await connection.getLatestBlockhash(context.blockhashCommitment)).blockhash)
-
-      const serialized = transaction.serialize()
-      // Adding a byte for the number of signatures, I think you should be able to get the total size with:
-      const size = serialized.length + 1 + (transaction.signatures.length * 64)
-
-      console.log('SIZE', size)
-
-      const signedTransaction = await wallet.signTransaction(transaction)
-
-      store.set({ state: 'sending' })
-
-      const txId = await connection.sendTransaction(signedTransaction, {
-        skipPreflight: true,
-        preflightCommitment: context.blockhashCommitment,
-      })
-
-      store.set({ state: 'processing', txId })
-      console.debug('TX sent', txId)
-
-      const blockhash = await connection.getLatestBlockhash(context.blockhashCommitment)
-
-      const confirmStrategy: TransactionConfirmationStrategy = {
-        blockhash: blockhash.blockhash,
-        lastValidBlockHeight: blockhash.lastValidBlockHeight,
-        signature: txId,
-      }
-
-      connection.confirmTransaction(confirmStrategy, 'processed').then((x) => {
-        console.debug('TX processed', x)
-        store.set({
-          state: 'confirming',
-          txId,
-          signatureResult: x.value,
-        })
-      })
-
-      connection.confirmTransaction(confirmStrategy, 'confirmed').then((x) => {
-        console.debug('TX confirmed', x)
-        store.set({ state: 'none' })
-      })
-
-      if (opts?.confirmation) {
-        await connection.confirmTransaction(confirmStrategy, opts.confirmation)
-      }
-
-      return txId
-    } catch (err) {
-      const logs = getErrorLogs(err)
-
-      const error = (() => {
-        if (logs) {
-          const anchorError = AnchorError.parse(logs)
-          if (anchorError) {
-            return anchorError
-          }
-        }
-        return err
-      })()
-
-      if (logs) {
-        console.error('Error Logs:\n', logs.join('\n'))
-      }
-
-      store.set({ state: 'error' })
-      throw throwTransactionError(error)
+  // Function to send a transaction
+  const sendTransaction = async (to: string, value: ethers.BigNumber) => {
+    if (!smartWallet) {
+      setError("Smart wallet not connected");
+      return;
     }
-  }
-}
+
+    setIsSending(true);
+    setError(null);
+
+    try {
+      // Initialize provider and signer
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner(smartWallet.address);
+
+      // Create transaction
+      const tx = await signer.sendTransaction({
+        to,
+        value,
+      });
+
+      // Wait for transaction to be mined
+      await tx.wait();
+    } catch (err) {
+      console.error("Error sending transaction:", err);
+      setError("Failed to send transaction");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return {
+    isSending,    // Boolean indicating if the transaction is in progress
+    sendTransaction, // Function to trigger a transaction
+    error,        // Error message if any error occurs
+  };
+};
