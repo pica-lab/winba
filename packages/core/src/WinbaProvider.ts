@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';  
 import { useContract } from '@thirdweb-dev/react';  
 
-export class GambaProvider {
+export class WinbaProvider {
   contract: ethers.Contract;
   wallet: ethers.Wallet;
 
