@@ -1,57 +1,32 @@
-import { useEffect, useState } from "react";
+import React from "react";
 import { ethers } from "ethers";
-import { useSmartWallet } from "@thirdweb-dev/react";
+import { useCurrentPool } from "./hooks/useCurrentPool";
+import poolAbi from "../abis/poolAbi.json";  // Replace with the actual ABI of your pool contract
 
-interface PoolInfo {
-  poolAddress: string;
-  liquidity: ethers.BigNumber;
-  totalPlayers: ethers.BigNumber;
-  totalGames: ethers.BigNumber;
-}
+const contractAddress = "0xYourContractAddress";  // Replace with the contract address
+const poolAddress = "0xYourPoolAddress";  // Replace with the pool address
 
-export const useCurrentPool = (contractAddress: string, abi: any, poolAddress: string) => {
-  const { smartWallet } = useSmartWallet(); // Get the connected smart wallet
-  const [poolInfo, setPoolInfo] = useState<PoolInfo | null>(null); // Store the pool information
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Loading state
-  const [error, setError] = useState<string | null>(null); // Error state
+const CurrentPoolComponent = () => {
+  const { poolInfo, isLoading, error } = useCurrentPool(contractAddress, poolAbi, poolAddress);
 
-  useEffect(() => {
-    if (!contractAddress || !poolAddress || !smartWallet) return;
-
-    const fetchPoolInfo = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        const contract = new ethers.Contract(contractAddress, abi, provider);
-
-        // Fetch the pool information
-        const liquidity = await contract.getLiquidity(poolAddress);
-        const totalPlayers = await contract.getTotalPlayers(poolAddress);
-        const totalGames = await contract.getTotalGames(poolAddress);
-
-        // Set the pool information
-        setPoolInfo({
-          poolAddress,
-          liquidity,
-          totalPlayers,
-          totalGames,
-        });
-      } catch (err) {
-        console.error("Error fetching pool information:", err);
-        setError("Failed to fetch pool information");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchPoolInfo();
-  }, [contractAddress, poolAddress, smartWallet]);
-
-  return {
-    poolInfo,    // Pool information (liquidity, total players, total games)
-    isLoading,   // Loading state
-    error,       // Error message
-  };
+  return (
+    <div>
+      <h2>Current Pool Information</h2>
+      {error && <p style={{ color: "red" }}>{error}</p>}
+      {isLoading ? (
+        <p>Loading pool information...</p>
+      ) : (
+        poolInfo && (
+          <div>
+            <p>Pool Address: {poolInfo.poolAddress}</p>
+            <p>Liquidity: {ethers.utils.formatEther(poolInfo.liquidity)} ETH</p>
+            <p>Total Players: {poolInfo.totalPlayers.toString()}</p>
+            <p>Total Games: {poolInfo.totalGames.toString()}</p>
+          </div>
+        )
+      )}
+    </div>
+  );
 };
+
+export default CurrentPoolComponent;
