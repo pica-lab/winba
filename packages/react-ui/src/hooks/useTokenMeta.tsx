@@ -1,123 +1,60 @@
-import { signal } from '@preact/signals-react'
-import { PublicKey } from '@solana/web3.js'
-import React from 'react'
-import { FAKE_TOKEN_MINT, TokenMeta, TokenMetaContext } from '../TokenMetaProvider'
+import { useState, useEffect, useContext } from 'react';
+import { ethers } from 'ethers';
+import { WinbaPlatformContext } from '../WinbaPlatformProvider'; // Updated from GambaPlatformProvider
+import { FAKE_TOKEN_MINT } from '../TokenMetaProvider'; // Assuming this is your fake token definition
 
-const DEFAULT_DEBOUNCE_MS = 0
-const tokenMints = signal(new Set<string>)
-const tokenData = signal<Record<string, TokenMeta>>({})
+interface TokenMeta {
+  name: string;
+  symbol: string;
+  decimals: number;
+}
 
-const STANDARD_TOKEN_DATA = {
-  So11111111111111111111111111111111111111112: {
-    name: 'Solana',
-    symbol: 'SOL',
-    decimals: 9,
-    image: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
-    baseWager: 0.01 * 1e9,
-  },
-  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: {
-    symbol: 'USDC',
-    image: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
-    usdPrice: 1,
-    decimals: 6,
-    baseWager: 1 * 1e6,
-  },
-  [FAKE_TOKEN_MINT.toString()]: {
-    name: 'Fake Money',
-    symbol: 'FAKE',
-    decimals: 9,
-    baseWager: 1 * 1e9,
-    usdPrice: 0,
-  },
-} as Record<string, Partial<TokenMeta>>
+export const useTokenMeta = (tokenAddress: string) => {
+  const [tokenMeta, setTokenMeta] = useState<TokenMeta | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const context = useContext(WinbaPlatformContext); // Updated from GambaPlatformContext
 
-let fetchTimeout: any
+  useEffect(() => {
+    const fetchTokenMeta = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-export function useTokenMeta(mint: PublicKey): TokenMeta {
-  const context = React.useContext(TokenMetaContext)
-  const fetchedTokenData = tokenData.value[mint.toString()]
+        // Check if the token is the fake token
+        if (tokenAddress === FAKE_TOKEN_MINT) {
+          setTokenMeta({
+            name: 'FakeToken',
+            symbol: 'FTK',
+            decimals: 18,
+          });
+        } else {
+          // Use ethers.js to fetch the token metadata from the blockchain
+          const provider = new ethers.providers.Web3Provider(window.ethereum);
+          const contract = new ethers.Contract(tokenAddress, [
+            'function name() view returns (string)',
+            'function symbol() view returns (string)',
+            'function decimals() view returns (uint8)',
+          ], provider);
 
-  React.useEffect(() => {
-    // Clear old timeout whenever a new mint should get fetched
-    tokenMints.value.add(mint.toString())
+          const name = await contract.name();
+          const symbol = await contract.symbol();
+          const decimals = await contract.decimals();
 
-    clearTimeout(fetchTimeout)
-
-    fetchTimeout = setTimeout(async () => {
-      if (!context.fetcher) return
-
-      const unique = Array
-        .from(tokenMints.value)
-        .filter((x) => x !== FAKE_TOKEN_MINT.toString() && !Object.keys(tokenData.value).includes(x))
-
-      if (!unique.length) {
-        return
+          setTokenMeta({ name, symbol, decimals });
+        }
+      } catch (err) {
+        console.error('Error fetching token metadata:', err);
+        setError('Failed to fetch token metadata');
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-      console.debug('Fetching Mint', unique)
-
-      const newData = await context.fetcher(unique)
-
-      tokenData.value = { ...tokenData.value, ...newData }
-      tokenMints.value.clear()
-    }, context.debounce ?? DEFAULT_DEBOUNCE_MS)
-
-    return () => {
-      clearTimeout(fetchTimeout)
+    if (tokenAddress) {
+      fetchTokenMeta();
     }
-  }, [mint.toString()])
+  }, [tokenAddress]);
 
-  const defaultToken: TokenMeta = {
-    mint: new PublicKey(mint),
-    name: 'Unknown',
-    symbol: mint.toString().substring(0, 3),
-    image: undefined,
-    decimals: 9,
-    baseWager: 1,
-    usdPrice: 0,
-  }
-
-  const fallback = context.fallback ?? (() => undefined)
-
-  return {
-    ...defaultToken,
-    ...fetchedTokenData,
-    ...STANDARD_TOKEN_DATA[mint.toString()],
-    ...fallback(mint),
-  }
-}
-
-type UseTokenMetaFetcher = (tokenMints: string[]) => (Promise<Record<string, TokenMeta>> | Record<string, TokenMeta>)
-
-/**
- * @deprecated Use <TokenMetaProvider />
- */
-useTokenMeta.debouce = DEFAULT_DEBOUNCE_MS
-
-/**
- * @deprecated Use <TokenMetaProvider />
- */
-useTokenMeta.fallback = (mint: PublicKey): (Partial<TokenMeta> | undefined) => {
-  return undefined
-}
-
-/**
- * @deprecated Use <TokenMetaProvider />
- */
-useTokenMeta.setFallbackHandler = (cb: (mint: PublicKey) => (Partial<TokenMeta> | undefined)) => {
-  // useTokenMeta.fallback = cb
-}
-
-/**
- * @deprecated Use <TokenMetaProvider />
- */
-useTokenMeta.fetcher = (mints: string[]) => {
-  return {}
-}
-
-/**
- * @deprecated Use <TokenMetaProvider />
- */
-useTokenMeta.setFetcher = (cb: UseTokenMetaFetcher) => {
-  // useTokenMeta.fetcher = cb
-}
+  return { tokenMeta, isLoading, error };
+};
