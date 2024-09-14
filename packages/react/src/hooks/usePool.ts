@@ -1,61 +1,98 @@
-import { PublicKey } from '@solana/web3.js'
-import { BPS_PER_WHOLE, SYSTEM_PROGRAM, decodeAta, decodeGambaState, decodePool, getGambaStateAddress, getPoolAddress, getPoolJackpotTokenAccountAddress } from 'gamba-core-v2'
-import { useAccount } from './useAccount'
+import { useEffect, useState } from "react";
+import { ethers } from "ethers";
+import { useSmartWallet } from "@thirdweb-dev/react";
 
-export interface UiPoolState {
-  publicKey: PublicKey
-  token: PublicKey
-  liquidity: bigint
-  minWager: number
-  maxPayout: number
-  gambaFee: number
-  poolFee: number
-  jackpotBalance: number
-  authority: PublicKey
-}
+// Hook to manage pool interactions on Winba
+export const usePool = (contractAddress: string, abi: any) => {
+  const { smartWallet } = useSmartWallet(); // Get the connected smart wallet
+  const [poolInfo, setPoolInfo] = useState<any>(null); // State to store pool information
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Loading state
+  const [error, setError] = useState<string | null>(null); // Error state
 
-export function usePool(token: PublicKey, authority: PublicKey = SYSTEM_PROGRAM): UiPoolState {
-  const publicKey = getPoolAddress(token, authority)
-  const account = useAccount(publicKey, decodePool)
-  const gambaState = useAccount(getGambaStateAddress(), decodeGambaState)
-
-  const jackpotUnderlyingTokenAccount = useAccount(getPoolJackpotTokenAccountAddress(publicKey), decodeAta)
-  const jackpotBalance = jackpotUnderlyingTokenAccount?.amount ?? BigInt(0)
-
-  if (!account) {
-    return {
-      token,
-      publicKey,
-      liquidity: BigInt(0),
-      minWager: 0,
-      maxPayout: 0,
-      gambaFee: 0,
-      poolFee: 0,
-      jackpotBalance: 0,
-      authority,
+  // Fetch pool information
+  const fetchPoolInfo = async (poolAddress: string) => {
+    if (!smartWallet) {
+      setError("Smart wallet not connected");
+      return;
     }
-  }
 
-  const liquidity = BigInt(account.liquidityCheckpoint)
+    setIsLoading(true);
+    setError(null);
 
-  const customGambaFeeBps = account.customGambaFeeBps.toNumber()
-  const customPoolFeeBps = account.customPoolFeeBps.toNumber()
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const contract = new ethers.Contract(contractAddress, abi, provider);
+      const poolData = await contract.getPoolInfo(poolAddress);
 
-  const gambaFee = ((customGambaFeeBps || gambaState?.gambaFeeBps.toNumber()) ?? 0) / BPS_PER_WHOLE
-  const poolFee = ((customPoolFeeBps || gambaState?.defaultPoolFee.toNumber()) ?? 0) / BPS_PER_WHOLE
-  const maxPayoutBps = (account.customMaxPayoutBps?.toNumber() || gambaState?.maxPayoutBps?.toNumber()) ?? 0
+      setPoolInfo(poolData);
+    } catch (err) {
+      console.error("Error fetching pool information:", err);
+      setError("Failed to fetch pool information");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const maxPayout = Number(liquidity * BigInt(maxPayoutBps)) / BPS_PER_WHOLE
+  // Deposit to the pool
+  const depositToPool = async (poolAddress: string, tokenAddress: string, amount: ethers.BigNumber) => {
+    if (!smartWallet) {
+      setError("Smart wallet not connected");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner(smartWallet.address);
+      const contract = new ethers.Contract(contractAddress, abi, signer);
+
+      const tx = await contract.deposit(poolAddress, tokenAddress, amount, {
+        from: smartWallet.address,
+      });
+      await tx.wait();
+    } catch (err) {
+      console.error("Error depositing to pool:", err);
+      setError("Failed to deposit to pool");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Withdraw from the pool
+  const withdrawFromPool = async (poolAddress: string, tokenAddress: string, amount: ethers.BigNumber) => {
+    if (!smartWallet) {
+      setError("Smart wallet not connected");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner(smartWallet.address);
+      const contract = new ethers.Contract(contractAddress, abi, signer);
+
+      const tx = await contract.withdraw(poolAddress, tokenAddress, amount, {
+        from: smartWallet.address,
+      });
+      await tx.wait();
+    } catch (err) {
+      console.error("Error withdrawing from pool:", err);
+      setError("Failed to withdraw from pool");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return {
-    token,
-    publicKey,
-    minWager: account.minWager.toNumber(),
-    liquidity,
-    maxPayout,
-    gambaFee,
-    poolFee,
-    jackpotBalance: Number(jackpotBalance),
-    authority,
-  }
-}
+    poolInfo, // Information about the pool
+    fetchPoolInfo, // Function to fetch pool information
+    depositToPool, // Function to deposit to the pool
+    withdrawFromPool, // Function to withdraw from the pool
+    isLoading, // Loading state
+    error, // Error message
+  };
+};
